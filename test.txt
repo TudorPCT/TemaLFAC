@@ -1,0 +1,4 @@
+int a;
+begin_progr
+a:=10;
+end_progr
