@@ -41,21 +41,23 @@
    enum yytokentype {
      ID = 258,
      TIP = 259,
-     BEGIN = 260,
+     BGIN = 260,
      END = 261,
      ASSIGN = 262,
      NR = 263,
-     MAIN = 264
+     RTR = 264,
+     MAIN = 265
    };
 #endif
 /* Tokens.  */
 #define ID 258
 #define TIP 259
-#define BEGIN 260
+#define BGIN 260
 #define END 261
 #define ASSIGN 262
 #define NR 263
-#define MAIN 264
+#define RTR 264
+#define MAIN 265
 
 
 

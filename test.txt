@@ -1,4 +1,11 @@
 int a;
-begin_progr
-a:=10;
-end_progr
+int test(int b)
+begin
+	int c;
+	b:=10;
+end
+
+int main()
+begin
+	a:=10;
+end

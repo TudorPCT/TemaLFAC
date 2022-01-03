@@ -6,14 +6,10 @@ extern int yylineno;
 int yylex();
 void yyerror(char *s);
 %}
-%token ID TIP BEGIN END ASSIGN NR MAIN RTR
+%token ID TIP BGIN END ASSIGN NR RTR MAIN
 %start progr
 %%
-
 progr: declaratii functii mainbloc {printf("program corect sintactic\n");}
-	 | declaratii mainbloc
-	 | functii mainbloc
-	 | mainbloc
      ;
 
 declaratii :  declaratie ';'
@@ -29,39 +25,36 @@ lista_param : param
             
 param : TIP ID
       ; 
-	  
-/* Functii */
-functii : functie
-		| functii functie
+
+/* functii */
+functii : functii functie
+		| functie
 		;
-functie : TIP ID '(' lista_param ')' bloc 
-	;
-	
-/* Main */	
-mainbloc : TIP MAIN '(' ')' bloc
-	;
-	
+functie : TIP ID '(' lista_param ')' bloc
+		;
+	  
 /* bloc */
-bloc : BEGIN list END  
+bloc : BGIN list END  
      ;
      
 /* lista instructiuni */
-list : declaratii list
+list :  statement ';' 
      | list statement ';'
-	 | retrn ';'
      ;
-/* Return */
-retrn : RTR ';'
-	  |
+
 /* instructiune */
-statement: ID ASSIGN ID
-         | ID ASSIGN NR 
+statement: declaratie 
+		 | ID ASSIGN ID
+         | ID ASSIGN NR  		 
          | ID '(' lista_apel ')'
          ;
         
 lista_apel : NR
            | lista_apel ',' NR
            ;
+/* main */		   
+mainbloc : TIP MAIN '(' ')' bloc
+		 ;
 %%
 void yyerror(char * s){
 printf("eroare: %s la linia:%d\n",s,yylineno);

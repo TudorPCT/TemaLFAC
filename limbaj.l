@@ -5,9 +5,10 @@
 %option noyywrap
 %%
 "int"|"float"|"char"|"string" {return TIP;}
-"begin" {return BEGIN;}
+"main" {return MAIN;}
+"begin" {return BGIN;}
 "end" {return END;}
-"return" {return RETURN;}
+"return" {return RTR;}
 [_a-zA-Z][_a-zA-Z0-9]* {return ID;}
 ":=" {return ASSIGN;}
 [0-9]+ {return NR;}
