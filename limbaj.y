@@ -5,62 +5,92 @@ extern char* yytext;
 extern int yylineno;
 int yylex();
 void yyerror(char *s);
+
+union value {
+     int intVal;
+     float floatVal;
+     char strVal[101];
+     char charVal;
+};
+
+struct variable {
+     char *name;
+     char *type;
+     int val;
+	 int const;
+	 int scope;
+} vars[100];
+
+int noVars = 0;
+
 %}
-%token ID TIP BGIN END ASSIGN NR RTR MAIN
-%start progr
+%token ID TYPE ASSIGN MAIN NR CUSTOMTYPE RTR IF FOR ELSE WHILE
+%start program
 %%
-progr: declaratii functii mainbloc {printf("program corect sintactic\n");}
-     ;
 
-declaratii :  declaratie ';'
-	   | declaratii declaratie ';'
-	   ;
-declaratie : TIP ID 
-           | TIP ID '(' lista_param ')'
-           | TIP ID '(' ')'
-           ;
-lista_param : param
-            | lista_param ','  param 
-            ;
-            
-param : TIP ID
-      ; 
-
-/* functii */
-functii : functii functie
-		| functie
+program : declarations_global functions main {printf("program corect sintactic\n");}
 		;
-functie : TIP ID '(' lista_param ')' bloc
-		;
-	  
-/* bloc */
-bloc : BGIN list END  
-     ;
-     
-/* lista instructiuni */
-list :  statement ';' 
-     | list statement ';'
-     ;
 
-/* instructiune */
-statement: declaratie 
-		 | ID ASSIGN ID
-         | ID ASSIGN NR  		 
-         | ID '(' lista_apel ')'
-         ;
-        
-lista_apel : NR
-           | lista_apel ',' NR
-           ;
-/* main */		   
-mainbloc : TIP MAIN '(' ')' bloc
+// Declaratii
+declarations_global : declare ';' declarations_global
+					| function declarations_global
+					| custom_type ';' declarations_global
+					|
+					;
+declare : TYPE variables 
+		| CONST TYPE variables
+		|
+		;
+variables : ID
+		  | ID ',' variables
+		  | ID '(' declare ')'
+		  | ID ASSIGN ID
+		  | ID ASSIGN NR
+		  ;
+
+
+// Functii
+functions : function functions
+		  ;
+function : TYPE ID '(' declare ')' '{' block '}'
 		 ;
+block : '{' statements '}'
+	  | statements
+	  ;
+statements : statement ';' statements
+		   | statement
+		   | 
+	       ;
+statement : declare
+		  | ID ASSIGN ID 
+		  | ID ASSIGN NR  
+		  | exp
+	      | ID '(' declare ')'
+		  | IF '(' bool_expresion ')' block
+		  | IF '(' bool_expresion ')' block ELSE block
+		  | FOR '(' for_dec ';' bool_expresion ';' exp ')' block
+		  | WHILE '(' bool_expresion ')' block
+		  | returns
+		  ;
+returns : RTR ';'
+	    | RTR NR ';'
+	    | RTR ID ';'
+		;
+
+// Main
+
+	 
+
+
+
 %%
 void yyerror(char * s){
 printf("eroare: %s la linia:%d\n",s,yylineno);
 }
-
 int main(int argc, char** argv){
-yyin=fopen(argv[1],"r");
-yyparse();
+	yyin=fopen(argv[1],"r");
+	yyparse();
 } 
+		   
+	   
+
