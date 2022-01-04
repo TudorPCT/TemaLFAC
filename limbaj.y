@@ -41,18 +41,21 @@ declare : TYPE variables
 		;
 variables : ID
 		  | ID ',' variables
-		  | ID '(' declare ')'
+		  | ID '(' declare_list ')'
 		  | ID '('  ')'
 		  | ID ASSIGN ID
 		  | ID ASSIGN NR
 		  ;
+declare_list : declare_list ',' TYPE ID
+			 | TYPE ID
+		     ;
 custom_type : CUSTOMTYPE ID '{' declarations_global '}'
 
 // Functii
 functions : function
 		  | functions function 
 		  ;
-function : TYPE ID '(' declare ')' '{' statements '}'
+function : TYPE ID '(' declare_list ')' '{' statements '}'
 		 | TYPE ID '(' ')' '{' statements '}'
 		 ;
 
@@ -128,11 +131,6 @@ exp : exp '+' exp
     | NR
 	| ID
     ;
-
-string : string '+' string
-       | string '^' exp
-	   | string '%' string
-	;
 
 %%
 	
