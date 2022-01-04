@@ -3,7 +3,7 @@ char b,d;
 struct ab {
 	int abc;
 };
-int fun(int a);
+int fun(int a, int b, int c);
 int f();
 int f(int b)
 {
@@ -17,7 +17,7 @@ int main()
 	int x := 0;
 	while((x-1) >= 0)
 		if(x == 2)
-			f(x);
+			fun(f(x),x,5);
 	for(x := 0; x < 5; x++)
 		f(x);
 	return 0;
