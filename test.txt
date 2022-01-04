@@ -1,11 +1,25 @@
-int a;
-int test(int b)
-begin
-	int c;
-	b:=10;
-end
+const int a:=5;
+char b,d;
+struct ab {
+	int abc;
+};
+int fun(int a);
+int f();
+int f(int b)
+{
+ 	int d;
+	d := 4;
+	return d;
+}
 
 int main()
-begin
-	a:=10;
-end
+{
+	int x := 0;
+	while((x-1) >= 0)
+		if(x == 2)
+			f(x);
+	for(x := 0; x < 5; x++)
+		f(x);
+	return 0;
+}
+
