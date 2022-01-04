@@ -79,7 +79,8 @@ returns : RTR ';'
 
 // Main
 
-	 
+	
+mainbloc : TYPE MAIN '(' ')' block
 
 
 
