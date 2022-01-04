@@ -1,13 +1,12 @@
 %{
 #include <stdio.h>
-#include "limbaj.tab.h"
+#include "tema.tab.h"
 %}
 %option noyywrap
 %%
-"int"|"float"|"char"|"string" {return TIP;}
+"int"|"float"|"char"|"string" {return TYPE;}
+"struct" {return CUSTOMTYPE;}
 "main" {return MAIN;}
-"begin" {return BGIN;}
-"end" {return END;}
 "return" {return RTR;}
 [_a-zA-Z][_a-zA-Z0-9]* {return ID;}
 ":=" {return ASSIGN;}
