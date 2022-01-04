@@ -39,12 +39,13 @@ declare : TYPE variables
 		| CONST TYPE variables
 		| custom_type
 		;
-variables : ID
-		  | ID ',' variables
+variables : ID ',' variables
 		  | ID '(' declare_list ')'
 		  | ID '('  ')'
-		  | ID ASSIGN ID
-		  | ID ASSIGN NR
+		  | ID ASSIGN expresion ',' variables
+		  | ID
+		  | NR
+		  | ID ASSIGN variables
 		  ;
 declare_list : declare_list ',' TYPE ID
 			 | TYPE ID
@@ -67,15 +68,18 @@ statements : statements statement ';'
 		   | ';'
 	       ;
 statement : declare
-		  | ID ASSIGN ID 
-		  | ID ASSIGN NR 
-		  | expresion
+		  | asigments
 	      | ID '(' param_list ')'
 		  | IF '(' bool_expresion ')' block
 		  | IF '(' bool_expresion ')' block ELSE block
 		  | FOR '(' for_dec ';' bool_expresion ';' for_exp ')' block
 		  | WHILE '(' bool_expresion ')' block
 		  | returns
+		  ;
+asigments : ID ASSIGN ID 
+		  | ID ASSIGN NR 
+		  | ID ASSIGN statement 
+		  | ID ASSIGN expresion
 		  ;
 param_list : param_list ',' ID
 		   | param_list ',' NR
@@ -102,7 +106,7 @@ for_dec : declare
 		| ID ASSIGN ID
 		| ID ASSIGN NR
 		;
-for_exp : ID ASSIGN exp
+for_exp : ID ASSIGN expresion
 		| ID '+' '+'
 		| | ID '-' '-'
 		;
@@ -130,6 +134,8 @@ exp : exp '+' exp
     | exp '^' exp    
     | NR
 	| ID
+    | ID '(' param_list ')'
+    | ID '('  ')'
     ;
 
 %%
