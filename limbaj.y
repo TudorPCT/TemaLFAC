@@ -24,7 +24,7 @@ struct variable {
 int noVars = 0;
 
 %}
-%token ID TYPE ASSIGN MAIN NR CUSTOMTYPE RTR IF FOR ELSE WHILE CONST OR AND
+%token ID TYPE ASSIGN MAIN NR CUSTOMTYPE RTR IF FOR ELSE WHILE CONST OR AND EQ GEQ LEQ
 %start program
 %%
 
@@ -52,12 +52,12 @@ custom_type : CUSTOMTYPE ID '{' declarations_global '}'
 functions : function
 		  | functions function 
 		  ;
-function : TYPE ID '(' declare ')' '{' block '}'
-		 | TYPE ID '(' ')' '{' block '}'
+function : TYPE ID '(' declare ')' '{' statements '}'
+		 | TYPE ID '(' ')' '{' statements '}'
 		 ;
 
 block : '{' statements '}'
-	  | statements
+	  | statement
 	  ;
 statements : statements statement ';'
 		   | statement ';'
@@ -86,6 +86,12 @@ bool_expresion : '(' bool_expresion ')'
 			   | '!' bool_expresion
 			   |  bool_expresion AND bool_expresion
 			   | bool_expresion OR bool_expresion
+			   | bool_expresion EQ bool_expresion
+			   | bool_expresion GEQ bool_expresion
+			   | bool_expresion LEQ bool_expresion
+			   | bool_expresion '<' bool_expresion
+			   | bool_expresion '>' bool_expresion
+			   | bool_expresion ASSIGN bool_expresion
 			   | expresion
 			   ;
 
@@ -94,7 +100,8 @@ for_dec : declare
 		| ID ASSIGN NR
 		;
 for_exp : ID ASSIGN exp
-		| expresion
+		| ID '+' '+'
+		| | ID '-' '-'
 		;
 
 returns : RTR 
@@ -105,7 +112,7 @@ returns : RTR
 
 // Main
 
-mainblock : TYPE MAIN '(' ')' '{' block '}'
+mainblock : TYPE MAIN '(' ')' '{' statements '}'
 		  ;
 
 
@@ -119,6 +126,7 @@ exp : exp '+' exp
     | exp '/' exp    
     | exp '^' exp    
     | NR
+	| ID
     ;
 
 string : string '+' string
