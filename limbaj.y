@@ -76,6 +76,7 @@ returns : RTR ';'
 	    | RTR NR ';'
 	    | RTR ID ';'
 		;
+		
 
 // Main
 
@@ -91,7 +92,31 @@ exp : exp '+' exp    {$$=($1+$3);}
     | exp '/' exp    {$$=($1/$3);}
     | '!'exp         {$$=0-$2;}
     | exp '^' exp    {$$=pow($1,$3)}
+    |NR
     ;
+
+string : string '+' string   { char* s=strdup($1);  strcat(s,$3); $$=s;}
+        |string '^' exp      { if($3==0)         //primele exp caractere din string 
+	                       $$='\0';
+			       else 
+			         { char *s=strdup(%1); 
+			           for(int i=1;i<=$3;++i)
+			           s=strcat(s,$1);
+			           $$=s;}
+			    }
+	|string '%' string  { char* s="";       
+	                      char* s2=strdup($1);
+			      char* s3=strdup($3);
+			      int i=0;
+			      while(s2[i]!='\0' && s3[i]!='\0')
+			      {
+			         strncat(s,s2[i],1);
+				 strncat(s,s3[i],1);
+				 ++i;
+			      }
+			      $$=s;
+			    }
+	;
 
 %%
 void yyerror(char * s){
