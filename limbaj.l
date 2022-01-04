@@ -8,6 +8,13 @@
 "struct" {return CUSTOMTYPE;}
 "main" {return MAIN;}
 "return" {return RTR;}
+
+"while" {return WHILE;}
+"for" {return FOR;}
+"if" {return IF;}
+"else" {return ELSE;}
+
+
 [_a-zA-Z][_a-zA-Z0-9]* {return ID;}
 ":=" {return ASSIGN;}
 [0-9]+ {return NR;}
