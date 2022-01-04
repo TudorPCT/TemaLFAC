@@ -14,10 +14,10 @@ int f(int b)
 
 int main()
 {
-	int x := 0;
+	int x := 0,y;
 	while((x-1) >= 0)
 		if(x == 2)
-			fun(f(x),x,5);
+			y := fun(f(x),x,5) + 1;
 	for(x := 0; x < 5; x++)
 		f(x);
 	return 0;
