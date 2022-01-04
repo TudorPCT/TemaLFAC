@@ -11,6 +11,9 @@
 "while" {return WHILE;}
 "for" {return FOR;}
 "if" {return IF;}
+"==" {return EQ;}
+">=" {return GEQ;}
+"<=" {return LEQ;}
 "else" {return ELSE;}
 "const" {return CONST;}
 "&&" {return AND;}
