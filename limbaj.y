@@ -81,8 +81,17 @@ returns : RTR ';'
 
 	
 mainbloc : TYPE MAIN '(' ')' block
+	;
 
 
+//Operations
+exp : exp '+' exp    {$$=($1+$3);}
+    | exp '-' exp    {$$=($1-$3);}
+    | exp '*' exp    {$$=($1*$3);}
+    | exp '/' exp    {$$=($1/$3);}
+    | '!'exp         {$$=0-$2;}
+    | exp '^' exp    {$$=pow($1,$3)}
+    ;
 
 %%
 void yyerror(char * s){
