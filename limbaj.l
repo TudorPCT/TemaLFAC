@@ -4,14 +4,15 @@
 %}
 %option noyywrap
 %%
-"int"|"float"|"char"|"string" {yylval.strval=strdup(yytext);return TYPE;}
+"int"|"float"|"char"|"string"|"bool" {yylval.strval=strdup(yytext);return TYPE;}
 "struct" {return CUSTOMTYPE;}
 "!" {return NOT;}
-"main" {return MAIN;}
+"main_" {return MAIN;}
 "return" {return RTR;}
 "while" {return WHILE;}
 "for" {return FOR;}
 "if" {return IF;}
+"true" {yylval.intval=1; return NR;}
 "==" {return EQ;}
 "!=" {return NEQ;}
 "><" {return NEQ;}
@@ -23,11 +24,11 @@
 "const" {yylval.strval=strdup(yytext); return CONST;}
 "&&" {return AND;}
 "||" {return OR;}
+[a-zA-Z] {yylval.charval=yytext[0]; return CH;}
 [_a-zA-Z][_a-zA-Z0-9]* {yylval.strval=strdup(yytext);return ID;}
 ":=" {return ASSIGN;}
 [0-9]+ {yylval.intval=atoi(yytext); return NR;}
-[0-9].[0-9]+ {yylval.intval=atof(yytext); return NR;}
-[_a-zA-Z0-9]* {yylval.strval=strdup(yytext);return STR;}
+[0-9]+"."[0-9]+  {yylval.floatval=atof(yytext); return NRF;}
 [ \t] ;
 \n {yylineno++;}
 . {return yytext[0];}
