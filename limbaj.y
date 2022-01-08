@@ -8,6 +8,8 @@ extern int yylineno;
 int yylex();
 void yyerror(char *s);
 
+int scope = 0;
+
 union value {
      int intVal;
      float floatVal;
@@ -37,28 +39,33 @@ struct functions {
 struct customtype {
 	char *name;
 	int noFields;
-	char *fieldNames;
-	char *fieldTypes[100];
+	struct variable fields[100];
+	struct functions methods[100];
 };
 
 int noVars = 0;
 
-int insertVar(char *name, char *type, union value val,int scope);
+int insertVar(char *name, char *type, union value val);
+void assignVar(char* type_, char *id1, char* id2);
 int existsVar(char *s);
 void printSymbolTabel();
 
 %}
 %union {
 int intval;
+char charval;
 char* strval;
+float floatval;
 }
 
 %token ID
-%token NR
+%token NR NRF
 %token <customtype> CUSTOMTYPE
-%token TYPE MAIN STR RTR ASSIGN IF FOR ELSE WHILE CONST OR AND EQ GEQ LEQ NOT NEQ 
+%token TYPE MAIN STR RTR ASSIGN IF FOR ELSE WHILE CONST OR AND EQ GEQ LEQ NOT NEQ CH
 %type <strval> ID TYPE CONST STR type_
 %type <intval> NR
+%type <floatval> NRF
+%type <charval> CH
 %start program
 %left AND OR
 %left NOT
@@ -73,61 +80,46 @@ program : declarations_global   {printf("program corect sintactic\n");}
 
 // Declaratii
 declarations_global : declarations_global declare ';'
-					| declare ';'
+					| declare ';' {scope = 1;}
 					;
 
 declare   : type_ ID 
 				{
 					union value x;  x.intVal = -1; 
-					char msg[100]; strcpy(msg,"Variable "); 
-					int err = insertVar($2,$1,x,0);
-					if( err == 2) 
-					{
-						strcat(msg,$2); 
-						strcat(msg," already defined"); 
-						yyerror(msg);
-					}
+					insertVar($2,$1,x);
 				}
 		  | type_ ID ASSIGN NR 
 		  		{
-					union value x;  x.intVal = -1; 
-					char msg[100]; strcpy(msg,"Variable "); 
-					int err = insertVar($2,$1,x,0);
-					if( err == 2) 
-					{
-						strcat(msg,$2); 
-						strcat(msg," already defined"); 
-						yyerror(msg);
-					}
+					union value x;  
+					if(strcmp($1,"float")  == 0|| strcmp($1,"const float") == 0)
+						x.floatVal = $4;
+					else
+						x.intVal = $4; 
+					insertVar($2,$1,x);
 				}
-		  | type_ ID ASSIGN ID
-		  		{		  			
-					union value x;  char msg[100];
-					int i=existsVal($4);
-					if(i==-1)
-					{
-					sprintf(msg,"Variable %s doesn't exist",$4);
-					yyerror(msg);
+	  	  | type_ ID ASSIGN NRF
+	  		  	{
+	  				union value x;  
+	  				x.floatVal = $4;
+	  				insertVar($2,$1,x);
+	  			}
+		  | type_ ID ASSIGN '\"' CH '\"'
+		  		{
+					union value x;
+					if(strcmp($1,"char")  == 0|| strcmp($1,"const char") == 0){
+						x.charVal = $5;
+						insertVar($2,$1,x);
 					}
 					else
-					{ 	if(strcmp($1,vars[i].type)!=0)
-						{
-						sprintf(msg,"Variable %s has not same type with variable %s",$2,&4);
+					{
+						char msg[100];
+						sprintf(msg,"Type %s doesn't accept char'",$1);
 						yyerror(msg);
-						}
-						else
-						{
-							x.intVal =vars[i].valoare; 
-							 strcpy(msg,"Variable "); 
-							int err = insertVar($2,$1,x,0);
-							if( err == 2) 
-							{
-								strcat(msg,$2); 
-								strcat(msg," already defined"); 
-								yyerror(msg);
-							}
-						}
-					}
+					} 
+		  	  	}
+		  | type_ ID ASSIGN ID
+		  		{		  			
+					assignVar($1,$2,$4);
 			  	}
 		  | type_ ID ASSIGN '\"' STR '\"' 
 			
@@ -234,7 +226,7 @@ exp : exp '+' exp
 %%
 	
 void yyerror(char * s){
-	printf("Error: %s at line:%d\n",s,yylineno);
+	printf("Error at line: %d : %s\n",yylineno,s);
 }
 int main(int argc, char** argv){
 	yyin=fopen(argv[1],"r");
@@ -242,11 +234,16 @@ int main(int argc, char** argv){
 	printSymbolTabel();
 } 
 
-int insertVar(char *name, char *type, union value val, int scope) {
+int insertVar(char *name, char *type, union value val) {
      int i = 0;
+	 char msg[100];
      for(i = 0; i < noVars; i++) {
           if(strcmp(vars[i].name, name) == 0)
-               return 2;
+          {
+			  sprintf(msg,"Variable \'%s\' already exist",name);
+			  yyerror(msg);
+			  return 2;
+		  }
      }
 
 	 vars[noVars].name = name;
@@ -267,7 +264,7 @@ int insertVar(char *name, char *type, union value val, int scope) {
 		 vars[noVars].isConst = 0;
 	 vars[noVars].scope = scope;
      noVars++;
-     return 0;
+	 return 0;
 }
 
 int existsVar(char *s) {
@@ -280,14 +277,41 @@ int existsVar(char *s) {
      return -1;
 }
 
+void assignVar(char *type_, char *id1, char *id2)
+{
+	union value x;  
+	char msg[100];
+	int i = existsVar(id2);
+	if(i == -1)
+	{
+		sprintf(msg,"Variable %s doesn't exist",id2);
+		yyerror(msg);
+	}
+	else
+	{ 	
+		if(strcmp(id1,vars[i].type) != 0)
+		{
+			sprintf(msg,"Variable %s has not same type with variable %s",id1,id2);
+			yyerror(msg);
+		}
+		else
+		{
+			x = vars[i].val; 
+			strcpy(msg,"Variable "); 
+		    insertVar(id1,type_,x);
+		}
+	}
+}
+
 void printSymbolTabel()
 {
 	FILE *file;
 	file = fopen("SymbolTable.txt","w");
 	int i;
-	fprintf(file,"------------------------------\n");
-	fprintf(file,"---------SYMBOL TABLE---------\n");
-	fprintf(file,"------------------------------\n");
+	fprintf(file,"--------------------------------------------------------------------\n");
+	fprintf(file,"----------------------------SYMBOL TABLE----------------------------\n");
+	fprintf(file,"--------------------------------------------------------------------\n");
+
 	for(i = 0; i < noVars; i++)
 	{
 		char constant[10];
@@ -301,10 +325,20 @@ void printSymbolTabel()
 		if(vars[i].hasVal == 1)
 		{
 			if(strcmp(vars[i].type,"int") == 0)
-			fprintf(file,"Type: [%s]    Name: [%s],   Const: [%s],   Value: [%d]   , Scope: [%s]\n",vars[i].type,vars[i].name,constant,vars[i].val.intVal,scope);
+				fprintf(file,"Type: [%s]      Name: [%s],   Const: [%s].    Value: [%d]    Scope: [%s]\n",vars[i].type,vars[i].name,constant,vars[i].val.intVal,scope);
+			else if(strcmp(vars[i].type,"float") == 0)
+				fprintf(file,"Type: [%s]    Name: [%s]   Const: [%s]   Value: [%f]    Scope: [%s]\n",vars[i].type,vars[i].name,constant,vars[i].val.floatVal,scope);
+			else if(strcmp(vars[i].type,"bool") == 0){
+				char b[6];
+				if(vars[i].val.boolVal == 1)
+					strcpy(b,"true");
+				else
+					strcpy(b,"false");
+				fprintf(file,"Type: [%s]     Name: [%s]   Const: [%s]   Value: [%s]    Scope: [%s]\n",vars[i].type,vars[i].name,constant,b,scope);
+			}
 		}
 		else
-			fprintf(file,"Type: [%s]    Name: [%s],   Const: [%s],   Scope: [%s]\n",vars[i].type,vars[i].name,constant,scope);		
+			fprintf(file,"Type: [%s]     Name: [%s]   Const: [%s]   Scope: [%s]\n",vars[i].type,vars[i].name,constant,scope);		
 	}
 	fclose(file);
 }
