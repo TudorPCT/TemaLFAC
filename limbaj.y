@@ -89,9 +89,46 @@ declare   : type_ ID
 					}
 				}
 		  | type_ ID ASSIGN NR 
-
+		  		{
+					union value x;  x.intVal = -1; 
+					char msg[100]; strcpy(msg,"Variable "); 
+					int err = insertVar($2,$1,x,0);
+					if( err == 2) 
+					{
+						strcat(msg,$2); 
+						strcat(msg," already defined"); 
+						yyerror(msg);
+					}
+				}
 		  | type_ ID ASSIGN ID
-			  
+		  		{		  			
+					union value x;  char msg[100];
+					int i=existsVal($4);
+					if(i==-1)
+					{
+					sprintf(msg,"Variable %s doesn't exist",$4);
+					yyerror(msg);
+					}
+					else
+					{ 	if(strcmp($1,vars[i].type)!=0)
+						{
+						sprintf(msg,"Variable %s has not same type with variable %s",$2,&4);
+						yyerror(msg);
+						}
+						else
+						{
+							x.intVal =vars[i].valoare; 
+							 strcpy(msg,"Variable "); 
+							int err = insertVar($2,$1,x,0);
+							if( err == 2) 
+							{
+								strcat(msg,$2); 
+								strcat(msg," already defined"); 
+								yyerror(msg);
+							}
+						}
+					}
+			  	}
 		  | type_ ID ASSIGN '\"' STR '\"' 
 			
 		  ;
