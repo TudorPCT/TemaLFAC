@@ -27,6 +27,12 @@ struct variable {
 	 int scope;
 } vars[100];
 
+struct node {
+char type;
+int value;
+node*left;
+node* right;
+}AST;
 struct arrays{
 	int isConst;
 	int scope;
@@ -229,13 +235,13 @@ mainblock : '{' statements '}'
 expresion : '(' expresion ')'
 		  | exp 
 		  ;
-exp : exp '+' exp    
-    | exp '-' exp   
-    | exp '*' exp 
-    | exp '/' exp    
-    | exp '^' exp    
-    | NR
-	| ID
+exp : exp '+' exp    {buildAST($2,$1,$3,'+');}
+    | exp '-' exp   	 {buildAST($2,$1,$3,'-');}
+    | exp '*' exp  {buildAST($2,$1,$3,'*');}
+    | exp '/' exp     {buildAST($2,$1,$3,'/');}
+    | exp '^' exp     {buildAST($2,$1,$3,'^');}
+    | NR		{buildAST($1,null,null,NR);}
+	| ID		{buildAST($1,null,null,ID);}
     | ID '(' param_list ')'
     | ID '('  ')'
     ;
@@ -404,4 +410,36 @@ void printSymbolTabel()
 	}
 	fclose(file);
 }
+
+struct node* buildAST(struct node* root,struct node* left,struct node* right,char type)
+{ 
+  strcmp(root->type,type);
+  root->left=left;
+  root->right=right;
+  return root;
+}
+int evalAST(struct node* AST)
+{
+int leftval=0;
+int rightval=0;
+if(AST->left!=0)
+leftval=evalAST(AST->left);
+if(AST->right!=0)
+rightval=evalAST(AST->right);
+if(AST->type=='+')
+return leftval+rightval;
+if(AST->type=='-')
+return leftval-rightval;
+if(AST->type=='*')
+return leftval*rightval;
+if(AST->type=='/')
+return leftval/rightval;
+if(AST->type=='^')
+return pow(leftval,rightval);
+if(AST->type=='NR')
+return AST->value;
+//if(AST->type=='ID');
+
+}
+
 
