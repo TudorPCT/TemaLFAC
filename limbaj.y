@@ -27,12 +27,6 @@ struct variable {
 	 int scope;
 } vars[100];
 
-struct node {
-char type;
-int value;
-node*left;
-node* right;
-}AST;
 struct arrays{
 	int isConst;
 	int scope;
@@ -58,12 +52,21 @@ struct customtype {
 	struct functions methods[100];
 };
 
+struct node {
+	int type;
+	union value var;
+	struct node *left;
+	struct node *right;
+};
+
 int noVars = 0;
 int noArr = 0;
 
 int insertVar(char *name, char *type, union value val);
 void insertarray(char *type, char *name, int maxElem);
 void assignVar(char* type_, char *id1, char* id2);
+struct node* buildAST(union value root,struct node* left,struct node* right,int type);
+int evalAST(struct node* AST);
 int existsVar(char *s);
 void printSymbolTabel();
 
@@ -73,6 +76,7 @@ int intval;
 char charval;
 char* strval;
 float floatval;
+struct node *astval;
 }
 
 %token ID
@@ -83,6 +87,7 @@ float floatval;
 %type <intval> NR
 %type <floatval> NRF
 %type <charval> CH
+%type <astval> exp
 %start program
 %left AND OR
 %left NOT
@@ -100,6 +105,10 @@ declarations_global : declare ';' declarations_global
 					| FS {scope++;}
 					| MAIN {scope = 0;}
 					;
+
+declr : declare
+	  | custom_type
+		 ;
 
 declare   : type_ ID 
 				{
@@ -152,8 +161,8 @@ type_ : TYPE { $$ = $1;}
 	  | CONST TYPE {strcat($1," "); strcat($1,$2); $$ = $1;}
 	;
 
-custom_type : CUSTOMTYPE ID '{' declarations_global '}'
-			| CONST CUSTOMTYPE ID '{' declarations_global '}'
+custom_type : CUSTOMTYPE ID '{' declare '}'
+			| CONST CUSTOMTYPE ID '{' declare '}'
 
 // Functii
 functions : function functions {scope++;}
@@ -175,7 +184,8 @@ statements : statements statement ';'
 		   | statement ';'
 		   | ';'
 	       ;
-statement : declare
+statement : exp {printf("%d",evalAST($1));}
+|declare
 		  | asigments
 	      | ID '(' param_list ')'
 		  | IF '(' bool_expresion ')' block
@@ -187,7 +197,7 @@ statement : declare
 asigments : ID ASSIGN ID 
 		  | ID ASSIGN NR 
 		  | ID ASSIGN statement 
-		  | ID ASSIGN expresion
+		  | ID ASSIGN exp
 		  ;
 param_list : param_list ',' ID
 		   | param_list ',' NR
@@ -207,14 +217,14 @@ bool_expresion : '(' bool_expresion ')'
 			   | bool_expresion S bool_expresion
 			   | bool_expresion G bool_expresion
 			   | bool_expresion ASSIGN bool_expresion
-			   | expresion
+			   | exp
 			   ;
 
 for_dec : declare
 		| ID ASSIGN ID
 		| ID ASSIGN NR
 		;
-for_exp : ID ASSIGN expresion
+for_exp : ID ASSIGN exp
 		| ID '+' '+'
 		| | ID '-' '-'
 		;
@@ -232,18 +242,15 @@ mainblock : '{' statements '}'
 
 
 //Operations
-expresion : '(' expresion ')'
-		  | exp 
-		  ;
-exp : exp '+' exp    {buildAST($2,$1,$3,'+');}
-    | exp '-' exp   	 {buildAST($2,$1,$3,'-');}
-    | exp '*' exp  {buildAST($2,$1,$3,'*');}
-    | exp '/' exp     {buildAST($2,$1,$3,'/');}
-    | exp '^' exp     {buildAST($2,$1,$3,'^');}
-    | NR		{buildAST($1,null,null,NR);}
-	| ID		{buildAST($1,null,null,ID);}
-    | ID '(' param_list ')'
-    | ID '('  ')'
+
+exp : '(' exp ')'  		 {$$ = $2;}
+	| exp '+' exp   	 {union value x; x.charVal = $<charval>2; $$ = buildAST(x,$1,$3,1);}
+    | exp '-' exp   	 {union value x; x.charVal = $<charval>2; $$ = buildAST(x,$1,$3,2);}
+    | exp '*' exp  		 {union value x; x.charVal = $<charval>2; $$ = buildAST(x,$1,$3,3);}
+    | exp '/' exp   	 {union value x; x.charVal = $<charval>2; $$ = buildAST(x,$1,$3,4);}
+    | exp '^' exp     	 {union value x; x.charVal = $<charval>2; $$ = buildAST(x,$1,$3,5);}
+    | NR				 {union value x; x.intVal = $1; $$ = buildAST(x,NULL,NULL,6);}
+	| ID				 {union value x; strcpy(x.strVal, $1); $$ = buildAST(x,NULL,NULL,7);}
     ;
 
 %%
@@ -411,35 +418,48 @@ void printSymbolTabel()
 	fclose(file);
 }
 
-struct node* buildAST(struct node* root,struct node* left,struct node* right,char type)
+
+struct node * buildAST(union value root,struct node *left,struct node *right,int type)
 { 
-  strcmp(root->type,type);
-  root->left=left;
-  root->right=right;
-  return root;
+	struct node*  AST = malloc(sizeof(struct node));
+	AST->var = root;
+  	AST->type = type;
+  	AST->left = left;
+ 	AST->right = right;
+ 	return AST;
 }
+
 int evalAST(struct node* AST)
 {
-int leftval=0;
-int rightval=0;
-if(AST->left!=0)
-leftval=evalAST(AST->left);
-if(AST->right!=0)
-rightval=evalAST(AST->right);
-if(AST->type=='+')
-return leftval+rightval;
-if(AST->type=='-')
-return leftval-rightval;
-if(AST->type=='*')
-return leftval*rightval;
-if(AST->type=='/')
-return leftval/rightval;
-if(AST->type=='^')
-return pow(leftval,rightval);
-if(AST->type=='NR')
-return AST->value;
-//if(AST->type=='ID');
+	int leftval = 0;
+	int rightval = 0;
+	if(AST->left != NULL)
+		leftval = evalAST(AST->left);
+	if(AST->right != NULL)
+		rightval = evalAST(AST->right);
 
+	switch(AST->type)
+	{
+		case 1:
+	
+			return leftval + rightval;
+		break;
+		case 2:
+			return leftval - rightval;
+		break;
+		case 3:
+			return leftval * rightval;
+		break;
+		case 4:
+			return leftval / rightval;
+		break;
+		case 5:
+			return leftval ^ rightval;
+		break;
+		case 6:
+			return AST->var.intVal;
+		break;
+		default :
+			return 0;
+	}
 }
-
-
