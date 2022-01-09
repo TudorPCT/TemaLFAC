@@ -9,7 +9,7 @@ int yylex();
 void yyerror(char *s);
 
 int scope = 1;
-
+int yyr = 0;
 union value {
      int intVal;
      float floatVal;
@@ -126,7 +126,6 @@ declare   : type_ ID
 				}
 	  	  | type_ ID ASSIGN NRF
 	  		  	{
-					printf("%s",$2);
 	  				union value x;  
 	  				x.floatVal = $4;
 	  				insertVar($2,$1,x);
@@ -257,6 +256,7 @@ exp : '(' exp ')'  		 {$$ = $2;}
 	
 void yyerror(char * s){
 	printf("Error at line: %d : %s\n",yylineno,s);
+	yyr = 1;
 }
 int main(int argc, char** argv){
 	yyin=fopen(argv[1],"r");
@@ -309,7 +309,7 @@ void insertarray(char *type, char *name, int maxElem)
 			  return;
 	 	 }
    	  }
-	  arr[noArr].scope = scope;
+	 arr[noArr].scope = scope;
 	 arr[noArr].name = name;
 	 arr[noArr].type = type;
 	 arr[noArr].noElem = 0;
@@ -343,7 +343,7 @@ void assignVar(char *type_, char *id1, char *id2)
 	}
 	else
 	{ 	
-		if(strcmp(id1,vars[i].type) != 0)
+		if(strcmp(type_,vars[i].type) != 0)
 		{
 			sprintf(msg,"Variable %s has not same type with variable %s",id1,id2);
 			yyerror(msg);
@@ -421,6 +421,23 @@ void printSymbolTabel()
 
 struct node * buildAST(union value root,struct node *left,struct node *right,int type)
 { 
+	if(type == 7)
+	{
+		int i = existsVar(root.strVal);
+		if(i == -1)
+		{
+			char msg[100];
+			sprintf(msg,"Variable \'%s\' not found",root.strVal);
+			yyerror(msg);
+			return NULL;
+		}else if(strcmp(vars[i].type,"int") != 0)
+		{
+			char msg[100];
+			sprintf(msg,"Variable \'%s\' not an integer",vars[i].name);
+			yyerror(msg);
+			return NULL;
+		}
+	}
 	struct node*  AST = malloc(sizeof(struct node));
 	AST->var = root;
   	AST->type = type;
@@ -459,6 +476,8 @@ int evalAST(struct node* AST)
 		case 6:
 			return AST->var.intVal;
 		break;
+		case 7:
+			return vars[existsVar(AST->var.strVal)].val.intVal;
 		default :
 			return 0;
 	}
