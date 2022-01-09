@@ -2,4 +2,24 @@ int x := 10;
 float b := 2;
 bool t := true;
 const int ab := 10;
+int as[10];
+_global_declaration_section_
+
+int x := 10;
+float b := 2;
+bool t := true;
+const int ab := 10;
 int as;
+
+_func_section_
+
+int f(int ba)
+{
+	int xs;
+}
+
+_main_section_
+
+{
+	int c;
+}
