@@ -87,14 +87,12 @@ float floatval;
 %%
 
 program : DEC declarations_global functions mainblock {printf("program corect sintactic\n");}	
-		| DEC declarations_global mainblock {printf("program corect sintactic\n");}	
-		| functions mainblock {printf("program corect sintactic\n");}	
-		| mainblock {printf("program corect sintactic\n");}	
 		;
 
 // Declaratii
-declarations_global : declare ';' declarations_global{scope++;}
-					| FS | MAIN
+declarations_global : declare ';' declarations_global
+					| FS {scope++;}
+					| MAIN {scope = 0;}
 					;
 
 declare   : type_ ID 
@@ -152,7 +150,7 @@ custom_type : CUSTOMTYPE ID '{' declarations_global '}'
 			| CONST CUSTOMTYPE ID '{' declarations_global '}'
 
 // Functii
-functions : function functions 
+functions : function functions {scope++;}
 		  | MAIN {scope = 0;}
 		  ;
 
@@ -298,6 +296,7 @@ void insertarray(char *type, char *name, int maxElem)
 			  return;
 	 	 }
    	  }
+	  arr[noArr].scope = scope;
 	 arr[noArr].name = name;
 	 arr[noArr].type = type;
 	 arr[noArr].noElem = 0;
