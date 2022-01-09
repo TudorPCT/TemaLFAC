@@ -4,10 +4,12 @@
 %}
 %option noyywrap
 %%
+"_global_declaration_section_" {return DEC;}
+"_func_section_" {return FS;}
+"_main_section_" {return MAIN;}
 "int"|"float"|"char"|"string"|"bool" {yylval.strval=strdup(yytext);return TYPE;}
 "struct" {return CUSTOMTYPE;}
 "!" {return NOT;}
-"main_" {return MAIN;}
 "return" {return RTR;}
 "while" {return WHILE;}
 "for" {return FOR;}
@@ -24,7 +26,6 @@
 "const" {yylval.strval=strdup(yytext); return CONST;}
 "&&" {return AND;}
 "||" {return OR;}
-[a-zA-Z] {yylval.charval=yytext[0]; return CH;}
 [_a-zA-Z][_a-zA-Z0-9]* {yylval.strval=strdup(yytext);return ID;}
 ":=" {return ASSIGN;}
 [0-9]+ {yylval.intval=atoi(yytext); return NR;}
