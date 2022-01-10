@@ -210,13 +210,53 @@ functions : function functions {scope++;}
 		  | MAIN {scope = 0;}
 		  ;
 
-function : TYPE ID '(' declare_list ')' '{' statements '}'
-		 | TYPE ID '(' ')' '{' statements '}'
-		 ;
+function : TYPE ID '(' declare_list ')' '{' statements '}' {
+						if(function_exist($2,$4)!=-1)
+							{
+							char msg[100];
+							sprintf(msg,"function %s already exist\n",$2);
+							yyerror(msg);
+							}
+						}
+		 | TYPE ID '(' ')' '{' statements '}'  {
+						if(function_exist($2,"-")!=-1)
+							{
+							char msg[100];
+							sprintf(msg,"function %s already exist\n",$2);
+							yyerror(msg);
+							}
+						}
+		;
 
 declare_list : declare_list ',' TYPE ID
 			 | TYPE ID
 		     ;
+		     		 
+				 
+function_call: ID '('')' {
+				if(function_exist($1,"-")==-1)
+					{
+					char msg[100];
+					sprintf(msg,"function %s was not declared\n",$1);
+					yyerror(msg);
+					}
+			}
+					
+		|ID '(' arg_list ')' {
+					if(function_exist($1,$2)==-1)
+						{
+						char msg[100];
+						sprintf(msg,"function %s was not declared\n",$1);
+						yyerror(msg);
+						}
+					}
+		
+arg_list : arg_list ',' ID {
+				strcat($$,","); strcat($$,$3);
+			}
+           | ID 	{  strcpy($$,$1);}
+	   ;
+		
 
 block : '{' statements '}'
 	  | statement
