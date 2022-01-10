@@ -1,5 +1,6 @@
 %{
 #include <stdio.h>
+#include<string.h>
 #include "tema.tab.h"
 %}
 %option noyywrap
@@ -15,6 +16,8 @@
 "for" {return FOR;}
 "if" {return IF;}
 "true" {yylval.intval=1; return NR;}
+"false" {yylval.intval=0; return NR;}
+"print" {return PRT;}
 "==" {return EQ;}
 "!=" {return NEQ;}
 "><" {return NEQ;}
@@ -26,10 +29,12 @@
 "const" {yylval.strval=strdup(yytext); return CONST;}
 "&&" {return AND;}
 "||" {return OR;}
-[_a-zA-Z][_a-zA-Z0-9]* {yylval.strval=strdup(yytext);return ID;}
-":=" {return ASSIGN;}
+\'[_a-zA-Z/.^*\-+0-9 :]\' {yylval.charval=yytext[1];return CH;}
+\"[_a-zA-Z/.^*\-+0-9 :]*\" {yytext = yytext+1; yytext[strlen(yytext)-1] = '\0'; yylval.strval=strdup(yytext);return STR;}
 [0-9]+ {yylval.intval=atoi(yytext); return NR;}
 [0-9]+"."[0-9]+  {yylval.floatval=atof(yytext); return NRF;}
+[_a-zA-Z][_a-zA-Z0-9]* {yylval.strval=strdup(yytext);return ID;}
+":=" {return ASSIGN;}
 [ \t] ;
 \n {yylineno++;}
 . {return yytext[0];}
