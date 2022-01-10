@@ -2,6 +2,8 @@
 #include<string.h>
 #include <stdio.h>
 #include<stdlib.h>
+#include<math.h>
+	
 extern FILE* yyin;
 extern char* yytext;
 extern int yylineno;
@@ -62,9 +64,9 @@ struct node {
 int noVars = 0;
 int noArr = 0;
 
-int insertVar(char *name, char *type, union value val);
+int insertVar(char *name, char *type);
 void insertarray(char *type, char *name, int maxElem);
-void assignVar(char* type_, char *id1, char* id2);
+void assign(int type, union value id1, union value id2);
 struct node* buildAST(union value root,struct node* left,struct node* right,int type);
 int evalAST(struct node* AST);
 int existsVar(char *s);
@@ -82,7 +84,7 @@ struct node *astval;
 %token ID
 %token NR NRF
 %token <customtype> CUSTOMTYPE
-%token TYPE MAIN STR RTR ASSIGN IF FOR ELSE WHILE CONST OR AND EQ GEQ LEQ NOT NEQ CH FS DEC
+%token TYPE MAIN STR RTR ASSIGN IF FOR ELSE WHILE CONST OR AND EQ GEQ LEQ NOT NEQ CH FS DEC PRT
 %type <strval> ID TYPE CONST STR type_
 %type <intval> NR
 %type <floatval> NRF
@@ -94,6 +96,7 @@ struct node *astval;
 %left EQ NEQ GEQ LEQ G S
 %left '+' '-'
 %left '*' '/'
+%left '^'
 %left '('
 %%
 
@@ -112,48 +115,83 @@ declr : declare
 
 declare   : type_ ID 
 				{
-					union value x;  x.intVal = -1; 
-					insertVar($2,$1,x);
+					int x;
+					if(strncmp($1,"const",5) == 0) x = 1;
+					else x = 0;
+					insertVar($2,$1);
+					vars[noVars-1].isConst = x;
 				}
 		  | type_ ID ASSIGN NR 
 		  		{
-					union value x;  
-					if(strcmp($1,"float")  == 0|| strcmp($1,"const float") == 0)
-						x.floatVal = $4;
-					else
-						x.intVal = $4; 
-					insertVar($2,$1,x);
+					int x;
+					if(strncmp($1,"const",5) == 0) x = 1;
+					else x = 0;
+					union value id1,id2;
+					strcpy(id1.strVal, $2);
+					insertVar($2,$1);
+					if(strcmp($1,"float")  == 0 || strcmp($1,"const float") == 0) {
+						id2.floatVal = $4;
+						assign(2,id1,id2);
+					}
+					else{
+						id2.intVal = $4; 
+						assign(1,id1,id2);
+					}
+					vars[noVars-1].isConst = x;
 				}
 	  	  | type_ ID ASSIGN NRF
 	  		  	{
-	  				union value x;  
-	  				x.floatVal = $4;
-	  				insertVar($2,$1,x);
+					int x;
+					if(strncmp($1,"const",5) == 0) x = 1;
+					else x = 0;
+					union value id1,id2;
+					strcpy(id1.strVal, $2);
+	  				id2.floatVal = $4;
+	  				insertVar($2,$1);
+					assign(2,id1,id2);
+					vars[noVars-1].isConst = x;
 	  			}
-		  | type_ ID ASSIGN '\"' CH '\"'
-		  		{
-					union value x;
-					if(strcmp($1,"char")  == 0|| strcmp($1,"const char") == 0){
-						x.charVal = $5;
-						insertVar($2,$1,x);
-					}
-					else
-					{
-						char msg[100];
-						sprintf(msg,"Type %s doesn't accept char'",$1);
-						yyerror(msg);
-					} 
+	   	  | type_ ID ASSIGN CH 
+	   		    {
+	   				int x;
+	  				if(strncmp($1,"const",5) == 0) x = 1;
+	 				else x = 0;
+	   				union value id1,id2;
+	  				strcpy(id1.strVal, $2);
+	   				insertVar($2,$1);
+	   				id2.charVal = $4;
+	   				assign(3,id1,id2);
+	   				vars[noVars-1].isConst = x;
+	   	  	  	}
+		  | type_ ID ASSIGN STR 
+		 	    {
+					int x;
+					if(strncmp($1,"const",5) == 0) x = 1;
+					else x = 0;
+					union value id1,id2;
+					strcpy(id1.strVal, $2);
+					insertVar($2,$1);
+					strcpy(id2.strVal, $4);
+					assign(4,id1,id2);
+					vars[noVars-1].isConst = x;
 		  	  	}
+
 		  | type_ ID ASSIGN ID
-		  		{		  			
-					assignVar($1,$2,$4);
-			  	}
+  				{	
+					int x;
+					if(strncmp($1,"const",5) == 0) x = 1;
+					else x = 0;
+					union value id1,id2;
+					strcpy(id1.strVal, $2);
+					strcpy(id2.strVal, $4);
+					insertVar($2,$1);
+					assign(5,id1,id2);
+					vars[noVars-1].isConst = x;
+  	 	   }
 		  | type_ ID '[' NR ']' 
 		  		{
 					insertarray($1,$2,$4);
 		  	  	}
-		  | type_ ID ASSIGN '\"' STR '\"' 
-			
 		  ;
 
 type_ : TYPE { $$ = $1;}
@@ -183,14 +221,14 @@ statements : statements statement ';'
 		   | statement ';'
 		   | ';'
 	       ;
-statement : exp {printf("%d",evalAST($1));}
-|declare
+statement : declare
 		  | asigments
 	      | ID '(' param_list ')'
 		  | IF '(' bool_expresion ')' block
 		  | IF '(' bool_expresion ')' block ELSE block
 		  | FOR '(' for_dec ';' bool_expresion ';' for_exp ')' block
 		  | WHILE '(' bool_expresion ')' block
+		  | PRT '('  STR ',' exp ')' {printf("%s%d\n",$3,evalAST($5));}
 		  | returns
 		  ;
 asigments : ID ASSIGN ID 
@@ -204,8 +242,7 @@ param_list : param_list ',' ID
 		   | ID '(' param_list ')'
 		   | ID
 		   | NR
-		   ;
-			  
+		   ;  
 bool_expresion : '(' bool_expresion ')'
 			   | NOT bool_expresion
 			   |  bool_expresion AND bool_expresion
@@ -264,11 +301,11 @@ int main(int argc, char** argv){
 	printSymbolTabel();
 } 
 
-int insertVar(char *name, char *type, union value val) {
+int insertVar(char *name, char *type) {
      int i = 0;
 	 char msg[100];
      for(i = 0; i < noVars; i++) {
-          if(strcmp(vars[i].name, name) == 0)
+          if(strcmp(vars[i].name, name) == 0 && (vars[i].scope == 1 || vars[i].scope == scope))
           {
 			  sprintf(msg,"Variable \'%s\' already exist",name);
 			  yyerror(msg);
@@ -278,20 +315,9 @@ int insertVar(char *name, char *type, union value val) {
 
 	 vars[noVars].name = name;
 	 vars[noVars].type = type;
-	 
-	 if(val.intVal == -1)
-		 vars[noVars].hasVal = 0;
-	 else
-	 {
-		 vars[noVars].hasVal = 1;
-		 vars[noVars].val = val;
-	 }
-     if(strncmp(type,"const",5) == 0){
-		 vars[noVars].isConst = 1;
+     if(strncmp(type,"const",5) == 0)
 		 strcpy(vars[noVars].type,vars[noVars].type+6);
-	 }
-	 else
-		 vars[noVars].isConst = 0;
+	 vars[noVars].isConst = 0;
 	 vars[noVars].scope = scope;
      noVars++;
 	 return 0;
@@ -317,7 +343,7 @@ void insertarray(char *type, char *name, int maxElem)
 	 
 	 if(strncmp(arr[noArr].type,"const",5) == 0)
 		 strcpy(arr[noArr].type,arr[noArr].type+6);
-	 arr[noArr].isConst = 1;
+	arr[noArr].isConst = 0;
     noArr++;
 }
 
@@ -331,30 +357,63 @@ int existsVar(char *s) {
      return -1;
 }
 
-void assignVar(char *type_, char *id1, char *id2)
+void assign(int type, union value id1, union value id2)
 {
 	union value x;  
 	char msg[100];
-	int i = existsVar(id2);
+	int j,i = existsVar(id1.strVal);
 	if(i == -1)
 	{
-		sprintf(msg,"Variable %s doesn't exist",id2);
+		sprintf(msg,"Variable %s doesn't exist",id1.strVal);
 		yyerror(msg);
+		return;
 	}
-	else
-	{ 	
-		if(strcmp(type_,vars[i].type) != 0)
-		{
-			sprintf(msg,"Variable %s has not same type with variable %s",id1,id2);
-			yyerror(msg);
-		}
-		else
-		{
-			x = vars[i].val; 
-			strcpy(msg,"Variable "); 
-		    insertVar(id1,type_,x);
-		}
+	if(vars[i].isConst == 1)
+	{
+		sprintf(msg,"Variable %s is constant",vars[i].name);
+		yyerror(msg);
+		return;
 	}
+	vars[i].hasVal = 1;
+	switch(type)
+	{
+		case 1:
+			vars[i].val.intVal = id2.intVal;
+		break;
+		case 2:
+			vars[i].val.floatVal = id2.floatVal;
+		break;
+		case 3:
+			if(strcmp(vars[i].type,"char") != 0){
+				sprintf(msg,"Can't assign a char value to variable %s of type %s",vars[i].name,vars[i].type);
+				yyerror(msg);
+				return;
+			}
+			vars[i].val.charVal = id2.charVal;
+		break;
+		case 4:
+			if(strcmp(vars[i].type,"string") != 0){
+				sprintf(msg,"Can't assign a string to variable %s of type %s",vars[i].name,vars[i].type);
+				yyerror(msg);
+				return;
+			}
+			vars[i].val.charVal = id2.strVal;
+		break;
+		case 5:
+			j = existsVar(id2.strVal);
+			if(i == -1){
+				sprintf(msg,"Variable %s doesn't exist",id2.strVal);
+				yyerror(msg);
+				return;
+			}
+			if(strcmp(vars[i].type,vars[j].type) != 0){
+				sprintf(msg,"Variable %s has not same type with variable %s",vars[i].type,vars[j].type);
+				yyerror(msg);
+			}
+			else	vars[i].val  = vars[j].val;
+		break;
+	}
+	
 }
 
 void printSymbolTabel()
@@ -384,8 +443,12 @@ void printSymbolTabel()
 		{
 			if(strcmp(vars[i].type,"int") == 0)
 				fprintf(file,"Type: [%s]      Name: [%s],   Const: [%s].    Value: [%d]    Scope: [%s]\n",vars[i].type,vars[i].name,constant,vars[i].val.intVal,scopes);
+			else if(strcmp(vars[i].type,"char") == 0)
+				fprintf(file,"Type: [%s]      Name: [%s],   Const: [%s].    Value: [%c]    Scope: [%s]\n",vars[i].type,vars[i].name,constant,vars[i].val.charVal,scopes);
 			else if(strcmp(vars[i].type,"float") == 0)
 				fprintf(file,"Type: [%s]    Name: [%s]   Const: [%s]   Value: [%f]    Scope: [%s]\n",vars[i].type,vars[i].name,constant,vars[i].val.floatVal,scopes);
+			else if(strcmp(vars[i].type,"string") == 0)
+				fprintf(file,"Type: [%s]    Name: [%s]   Const: [%s]   Value: [%s]    Scope: [%s]\n",vars[i].type,vars[i].name,constant,vars[i].val.strVal,scopes);
 			else if(strcmp(vars[i].type,"bool") == 0){
 				char b[6];
 				if(vars[i].val.boolVal == 1)
@@ -430,13 +493,8 @@ struct node * buildAST(union value root,struct node *left,struct node *right,int
 			sprintf(msg,"Variable \'%s\' not found",root.strVal);
 			yyerror(msg);
 			return NULL;
-		}else if(strcmp(vars[i].type,"int") != 0)
-		{
-			char msg[100];
-			sprintf(msg,"Variable \'%s\' not an integer",vars[i].name);
-			yyerror(msg);
-			return NULL;
-		}
+		} else if(strcmp(vars[i].type,"int") != 0 && strcmp(vars[i].type,"bool") != 0)
+			root.intVal = 0;
 	}
 	struct node*  AST = malloc(sizeof(struct node));
 	AST->var = root;
@@ -454,11 +512,9 @@ int evalAST(struct node* AST)
 		leftval = evalAST(AST->left);
 	if(AST->right != NULL)
 		rightval = evalAST(AST->right);
-
 	switch(AST->type)
 	{
 		case 1:
-	
 			return leftval + rightval;
 		break;
 		case 2:
@@ -471,7 +527,7 @@ int evalAST(struct node* AST)
 			return leftval / rightval;
 		break;
 		case 5:
-			return leftval ^ rightval;
+			return pow(leftval, rightval);
 		break;
 		case 6:
 			return AST->var.intVal;
