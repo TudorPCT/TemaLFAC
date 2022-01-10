@@ -27,17 +27,11 @@ struct variable {
 	 int isConst;
 	 int hasVal;
 	 int scope;
+	 union value arr[100];
+ 	 int noElem;
+ 	 int maxElem;
 } vars[100];
 
-struct arrays{
-	int isConst;
-	int scope;
-	int noElem;
-	int maxElem;
-	char *type;
-	char *name;
-	union value val[100];
-}arr[100];
 
 struct functions {
     char *name;
@@ -62,10 +56,8 @@ struct node {
 };
 
 int noVars = 0;
-int noArr = 0;
 
-int insertVar(char *name, char *type);
-void insertarray(char *type, char *name, int maxElem);
+int insertVar(char *name, char *type, int maxElem);
 void assign(int type, union value id1, union value id2);
 struct node* buildAST(union value root,struct node* left,struct node* right,int type);
 int evalAST(struct node* AST);
@@ -104,7 +96,7 @@ program : DEC declarations_global functions mainblock {printf("program corect si
 		;
 
 // Declaratii
-declarations_global : declare ';' declarations_global
+declarations_global : declr ';' declarations_global
 					| FS {scope++;}
 					| MAIN {scope = 0;}
 					;
@@ -116,11 +108,15 @@ declr : declare
 declare   : type_ ID 
 				{
 					int x;
-					if(strncmp($1,"const",5) == 0) x = 1;
-					else x = 0;
-					insertVar($2,$1);
-					vars[noVars-1].isConst = x;
-				}
+					char msg[100];
+					if(strncmp($1,"const",5) == 0) {
+						sprintf(msg,"Const variable %s needs to be initialised",$2);
+						yyerror(msg);
+					} else {
+						insertVar($2,$1,0);
+						vars[noVars-1].isConst = x;
+					}
+				}	
 		  | type_ ID ASSIGN NR 
 		  		{
 					int x;
@@ -128,7 +124,7 @@ declare   : type_ ID
 					else x = 0;
 					union value id1,id2;
 					strcpy(id1.strVal, $2);
-					insertVar($2,$1);
+					insertVar($2,$1,0);
 					if(strcmp($1,"float")  == 0 || strcmp($1,"const float") == 0) {
 						id2.floatVal = $4;
 						assign(2,id1,id2);
@@ -147,7 +143,7 @@ declare   : type_ ID
 					union value id1,id2;
 					strcpy(id1.strVal, $2);
 	  				id2.floatVal = $4;
-	  				insertVar($2,$1);
+	  				insertVar($2,$1,0);
 					assign(2,id1,id2);
 					vars[noVars-1].isConst = x;
 	  			}
@@ -158,7 +154,7 @@ declare   : type_ ID
 	 				else x = 0;
 	   				union value id1,id2;
 	  				strcpy(id1.strVal, $2);
-	   				insertVar($2,$1);
+	   				insertVar($2,$1,0);
 	   				id2.charVal = $4;
 	   				assign(3,id1,id2);
 	   				vars[noVars-1].isConst = x;
@@ -170,7 +166,7 @@ declare   : type_ ID
 					else x = 0;
 					union value id1,id2;
 					strcpy(id1.strVal, $2);
-					insertVar($2,$1);
+					insertVar($2,$1,strlen($4));
 					strcpy(id2.strVal, $4);
 					assign(4,id1,id2);
 					vars[noVars-1].isConst = x;
@@ -184,13 +180,21 @@ declare   : type_ ID
 					union value id1,id2;
 					strcpy(id1.strVal, $2);
 					strcpy(id2.strVal, $4);
-					insertVar($2,$1);
+					insertVar($2,$1,0);
 					assign(5,id1,id2);
 					vars[noVars-1].isConst = x;
   	 	   }
 		  | type_ ID '[' NR ']' 
 		  		{
-					insertarray($1,$2,$4);
+					int x;
+					char msg[100];
+					if(strncmp($1,"const",5) == 0) {
+						sprintf(msg,"Const variable %s needs to be initialised",$2);
+						yyerror(msg);
+					} else {
+						insertVar($2,$1,$4);
+						vars[noVars-1].isConst = x;
+					}
 		  	  	}
 		  ;
 
@@ -301,7 +305,7 @@ int main(int argc, char** argv){
 	printSymbolTabel();
 } 
 
-int insertVar(char *name, char *type) {
+int insertVar(char *name, char *type, int maxElem) {
      int i = 0;
 	 char msg[100];
      for(i = 0; i < noVars; i++) {
@@ -312,40 +316,18 @@ int insertVar(char *name, char *type) {
 			  return 2;
 		  }
      }
-
 	 vars[noVars].name = name;
 	 vars[noVars].type = type;
      if(strncmp(type,"const",5) == 0)
 		 strcpy(vars[noVars].type,vars[noVars].type+6);
 	 vars[noVars].isConst = 0;
 	 vars[noVars].scope = scope;
+	 vars[noVars].noElem = 0;
+	 vars[noVars].maxElem = maxElem;
      noVars++;
 	 return 0;
 }
 
-void insertarray(char *type, char *name, int maxElem)
-{
-   	 int i = 0;
- 	 char msg[100];
-   	 for(i = 0; i < noArr; i++) {
-      	if(strcmp(arr[i].name, name) == 0)
-        {
-			  sprintf(msg,"Array \'%s\' already exist",name);
-			  yyerror(msg);
-			  return;
-	 	 }
-   	  }
-	 arr[noArr].scope = scope;
-	 arr[noArr].name = name;
-	 arr[noArr].type = type;
-	 arr[noArr].noElem = 0;
-	 arr[noArr].maxElem = maxElem;
-	 
-	 if(strncmp(arr[noArr].type,"const",5) == 0)
-		 strcpy(arr[noArr].type,arr[noArr].type+6);
-	arr[noArr].isConst = 0;
-    noArr++;
-}
 
 int existsVar(char *s) {
      int i = 0;
@@ -397,7 +379,7 @@ void assign(int type, union value id1, union value id2)
 				yyerror(msg);
 				return;
 			}
-			vars[i].val.charVal = id2.strVal;
+			strcpy(vars[i].val.strVal, id2.strVal);
 		break;
 		case 5:
 			j = existsVar(id2.strVal);
@@ -458,26 +440,12 @@ void printSymbolTabel()
 				fprintf(file,"Type: [%s]     Name: [%s]   Const: [%s]   Value: [%s]    Scope: [%s]\n",vars[i].type,vars[i].name,constant,b,scopes);
 			}
 		}
+		else if(vars[i].maxElem != 0)
+			fprintf(file,"Type: [%s]      Name: [%s]     Const: [%s]   No of elements: [%d] Max no of elements: [%d]  Scope: [%s]\n",vars[i].type,vars[i].name,constant,vars[i].noElem,vars[i].maxElem,scopes);
 		else
 			fprintf(file,"Type: [%s]     Name: [%s]   Const: [%s]   Scope: [%s]\n",vars[i].type,vars[i].name,constant,scopes);		
 	}
-	for(i = 0; i < noArr; i++)
-	{
-		char constant[10];
-		if(arr[i].isConst == 1)
-			strcpy(constant,"Yes");
-		else
-			strcpy(constant,"No");
-		char scopes[10];
-		if(arr[i].scope == 1)
-			strcpy(scopes,"global");
-		else if(arr[i].scope == 0)
-			strcpy(scopes,"main");
-		else
-			strcpy(scopes,"function");
-		fprintf(file,"Type: [%s]      Name: [%s]     Const: [%s]   No of elements: [%d] Max no of elements: [%d]  Scope: [%s]\n",arr[i].type,arr[i].name,constant,arr[i].noElem,arr[i].maxElem,scopes);
-		
-	}
+
 	fclose(file);
 }
 
