@@ -9,9 +9,9 @@ extern char* yytext;
 extern int yylineno;
 int yylex();
 void yyerror(char *s);
-
 int scope = 1;
 int yyr = 0;
+
 union value {
      int intVal;
      float floatVal;
@@ -36,17 +36,15 @@ struct variable {
 struct functions {
     char *name;
     char *type;
-	int nrArg;
-	char *argNames[100];
-	char *argTypes[100];
+	struct arguments *args;
+	int method;
+	int defined;
 }funcs[100];
 
 struct customtype {
 	char *name;
-	int noFields;
-	struct variable fields[100];
-	struct functions methods[100];
-};
+	struct arguments *fields;
+}ct[100];
 
 struct node {
 	int type;
@@ -55,14 +53,33 @@ struct node {
 	struct node *right;
 };
 
+struct arguments {
+	int noArgs;
+	char *argNames[100];
+	char *argTypes[100];
+	int argConsts[100];
+};
+
+struct prints{
+	int noPrn;
+	char *str[100];
+	int results[100];
+}prn;
+
 int noVars = 0;
+int noCT = 0;
+int noFuncs = 0;
 
 int insertVar(char *name, char *type, int maxElem);
-void assign(int type, union value id1, union value id2);
+void assign(int type, union value id1, union value id2, int index1, int index2);
 struct node* buildAST(union value root,struct node* left,struct node* right,int type);
 int evalAST(struct node* AST);
 int existsVar(char *s);
+struct arguments *addArgs(struct arguments *args, char *type_, char *name);
+void insertFunc(char *type_, char *name, struct arguments *args, int method, int defined);
+int existsFunc(char *type_, char *name, struct arguments *args, int tc);
 void printSymbolTabel();
+void printFunctionTabel();
 
 %}
 %union {
@@ -71,17 +88,19 @@ char charval;
 char* strval;
 float floatval;
 struct node *astval;
+struct arguments *argval;
 }
 
 %token ID
 %token NR NRF
 %token <customtype> CUSTOMTYPE
-%token TYPE MAIN STR RTR ASSIGN IF FOR ELSE WHILE CONST OR AND EQ GEQ LEQ NOT NEQ CH FS DEC PRT
-%type <strval> ID TYPE CONST STR type_
+%token TYPE MAIN STR RTR ASSIGN IF FOR ELSE WHILE CONST OR AND EQ GEQ LEQ NOT NEQ CH FS DEC PRT 
+%type <strval> ID TYPE CONST STR type_ function_call args_ returns_
 %type <intval> NR
 %type <floatval> NRF
 %type <charval> CH
 %type <astval> exp
+%type<argval> declare_list arg_list dec_
 %start program
 %left AND OR
 %left NOT
@@ -92,29 +111,26 @@ struct node *astval;
 %left '('
 %%
 
-program : DEC declarations_global functions mainblock {printf("program corect sintactic\n");}	
+program : DEC declarations_global functions mainblock {printf("Program is syntactically correct\n");}	
 		;
 
 // Declaratii
-declarations_global : declr ';' declarations_global
-					| FS {scope++;}
+declarations_global : declare ';' declarations_global
+					| FS {scope=3;}
 					| MAIN {scope = 0;}
 					;
 
-declr : declare
-	  | custom_type
-		 ;
 
 declare   : type_ ID 
 				{
-					int x;
 					char msg[100];
-					if(strncmp($1,"const",5) == 0) {
-						sprintf(msg,"Const variable %s needs to be initialised",$2);
+					if(strncmp($1,"const",5) == 0) 
+					{
+						sprintf(msg,"Const variable \'%s\' needs to be initialised",$2);
 						yyerror(msg);
 					} else {
 						insertVar($2,$1,0);
-						vars[noVars-1].isConst = x;
+						vars[noVars-1].isConst = 0;
 					}
 				}	
 		  | type_ ID ASSIGN NR 
@@ -127,11 +143,11 @@ declare   : type_ ID
 					insertVar($2,$1,0);
 					if(strcmp($1,"float")  == 0 || strcmp($1,"const float") == 0) {
 						id2.floatVal = $4;
-						assign(2,id1,id2);
+						assign(2,id1,id2,0,0);
 					}
 					else{
 						id2.intVal = $4; 
-						assign(1,id1,id2);
+						assign(1,id1,id2,0,0);
 					}
 					vars[noVars-1].isConst = x;
 				}
@@ -144,7 +160,7 @@ declare   : type_ ID
 					strcpy(id1.strVal, $2);
 	  				id2.floatVal = $4;
 	  				insertVar($2,$1,0);
-					assign(2,id1,id2);
+					assign(2,id1,id2,0,0);
 					vars[noVars-1].isConst = x;
 	  			}
 	   	  | type_ ID ASSIGN CH 
@@ -156,7 +172,7 @@ declare   : type_ ID
 	  				strcpy(id1.strVal, $2);
 	   				insertVar($2,$1,0);
 	   				id2.charVal = $4;
-	   				assign(3,id1,id2);
+	   				assign(3,id1,id2,0,0);
 	   				vars[noVars-1].isConst = x;
 	   	  	  	}
 		  | type_ ID ASSIGN STR 
@@ -168,7 +184,7 @@ declare   : type_ ID
 					strcpy(id1.strVal, $2);
 					insertVar($2,$1,strlen($4));
 					strcpy(id2.strVal, $4);
-					assign(4,id1,id2);
+					assign(4,id1,id2,0,0);
 					vars[noVars-1].isConst = x;
 		  	  	}
 
@@ -181,7 +197,7 @@ declare   : type_ ID
 					strcpy(id1.strVal, $2);
 					strcpy(id2.strVal, $4);
 					insertVar($2,$1,0);
-					assign(5,id1,id2);
+					assign(5,id1,id2,0,0);
 					vars[noVars-1].isConst = x;
   	 	   }
 		  | type_ ID '[' NR ']' 
@@ -202,60 +218,124 @@ type_ : TYPE { $$ = $1;}
 	  | CONST TYPE {strcat($1," "); strcat($1,$2); $$ = $1;}
 	;
 
-custom_type : CUSTOMTYPE ID '{' declare '}'
-			| CONST CUSTOMTYPE ID '{' declare '}'
-
 // Functii
-functions : function functions {scope++;}
+functions : function functions
 		  | MAIN {scope = 0;}
 		  ;
 
-function : TYPE ID '(' declare_list ')' '{' statements '}' {
-						if(function_exist($2,$4)!=-1)
-							{
-							char msg[100];
-							sprintf(msg,"function %s already exist\n",$2);
-							yyerror(msg);
-							}
-						}
-		 | TYPE ID '(' ')' '{' statements '}'  {
-						if(function_exist($2,"-")!=-1)
-							{
-							char msg[100];
-							sprintf(msg,"function %s already exist\n",$2);
-							yyerror(msg);
-							}
-						}
-		;
+function : TYPE ID '(' declare_list ')' '{' statements '}' 
+			{
+				insertFunc($1,$2,$4,scope%2,1);
+			}
+		 | TYPE ID '(' ')' '{' statements '}' 
+		 {
+			scope++;
+			struct arguments *arg = malloc(sizeof(struct arguments));
+			arg->noArgs = 0;
+			insertFunc($1,$2,arg,scope%2,1);
+			
+		 }
+		 | custom_type
+		 ;
 
-declare_list : declare_list ',' TYPE ID
-			 | TYPE ID
+declare_list : declare_list ',' type_ ID
+				{
+					$$ = addArgs($1,$3,$4);
+				}
+			 | type_ ID
+				{
+					struct arguments*  args = malloc(sizeof(struct arguments));
+					args->noArgs = 0;
+					$$ = addArgs(args,$1,$2);
+				}
+			 | type_ ID '[' ']'
+				{
+					struct arguments*  args = malloc(sizeof(struct arguments));
+					args->noArgs = 0;
+					$$ = addArgs(args,$1,$2);
+				}
 		     ;
-		     		 
+
+custom_type : CUSTOMTYPE ID '{' dec_ '}'   
+			 	{
+			 		ct[noCT].name = $2;
+			 		ct[noCT].fields = $4;
+					noCT++;
+	 			}
+
+dec_ : dec_ type_ ID  ';'
+		  	{
+	 			$$ = addArgs($1,$2,$3);
+			}
+	 | type_ ID ';'
+			{
+				if(scope % 2 == 1)
+					scope++;
+				struct arguments*  args = malloc(sizeof(struct arguments));
+		 		args->noArgs = 0;
+		 		$$ = addArgs(args,$1,$2);
+		 		insertVar($1,$2,0);
+				scope++;
+		 	}
+	 | type_ ID '[' NR ']' ';'
+		 	{
+				if(scope % 2 == 1)
+					scope++;
+		 		struct arguments*  args = malloc(sizeof(struct arguments));
+		 		args->noArgs = 0;
+		 		$$ = addArgs(args,$1,$2);
+		 		insertVar($1,$2,$4);
+				scope++;
+		 	}
+	 ;
 				 
-function_call: ID '('')' {
-				if(function_exist($1,"-")==-1)
-					{
+function_call : ID '('')' 
+				{
 					char msg[100];
-					sprintf(msg,"function %s was not declared\n",$1);
-					yyerror(msg);
-					}
-			}
-					
-		|ID '(' arg_list ')' {
-					if(function_exist($1,$2)==-1)
-						{
-						char msg[100];
-						sprintf(msg,"function %s was not declared\n",$1);
+					struct arguments*  args = malloc(sizeof(struct arguments));
+					args->noArgs = 0;
+					int i = existsFunc(NULL,$1,args,0);
+					if(i == -1)
+					{
+						sprintf(msg,"Function called \'%s\' couldn't be found",$1);
 						yyerror(msg);
-						}
 					}
-		
-arg_list : arg_list ',' ID {
-				strcat($$,","); strcat($$,$3);
+					else
+						$$ = funcs[i].type;
+				}	
+              | ID '(' arg_list ')' 
+			  	{
+					char msg[100];
+					int i = existsFunc(NULL,$1,$3,0);
+					if(i == -1)
+					{
+						sprintf(msg,"Function called \'%s\' couldn't be found",$1);
+						yyerror(msg);
+					}
+					else
+						$$ = funcs[i].type;
+			  	}
+			  ;
+
+arg_list : arg_list ',' args_
+			{
+				$$ = addArgs($1,$3,NULL);
 			}
-           | ID 	{  strcpy($$,$1);}
-	   ;
+		 | args_
+			{
+				struct arguments*  args = malloc(sizeof(struct arguments));
+				args->noArgs = 0;
+				$$ = addArgs(args,$1,"");
+			}
+		 ;
+args_ : ID 	{char msg[100];int i = existsVar($1); if(i == -1){ sprintf(msg,"Variable %s doesn't exist",$1); yyerror(msg);}else {$$ = vars[i].type;} }
+	  | NR	{$$ = "int";}
+	  | NRF	{$$ = "float";}
+	  | CH	{$$ = "char";}
+	  | STR {$$ = "string";}
+	  | function_call	{$$ = $1;}
+	  | exp	{$$ = "int";}
+	  ;
 		
 
 block : '{' statements '}'
@@ -267,51 +347,64 @@ statements : statements statement ';'
 	       ;
 statement : declare
 		  | asigments
-	      | ID '(' param_list ')'
+		  | function_call
 		  | IF '(' bool_expresion ')' block
 		  | IF '(' bool_expresion ')' block ELSE block
 		  | FOR '(' for_dec ';' bool_expresion ';' for_exp ')' block
 		  | WHILE '(' bool_expresion ')' block
-		  | PRT '('  STR ',' exp ')' {printf("%s%d\n",$3,evalAST($5));}
-		  | returns
+		  | PRT '('  STR ',' exp ')' {prn.str[prn.noPrn] = $3; prn.results[prn.noPrn++]=evalAST($5);}
+		  | returns_
 		  ;
-asigments : ID ASSIGN ID 
-		  | ID ASSIGN NR 
-		  | ID ASSIGN statement 
-		  | ID ASSIGN exp
+		  
+asigments : ID ASSIGN ID {union value id1,id2; strcpy(id1.strVal, $1); strcpy(id2.strVal, $3); assign(5,id1,id2,0,0);}
+		  | ID ASSIGN NR {union value id1,id2; strcpy(id1.strVal, $1); id2.intVal = $3; assign(1,id1,id2,0,0);}
+		  | ID ASSIGN NRF {union value id1,id2; strcpy(id1.strVal, $1); id2.floatVal = $3; assign(2,id1,id2,0,0);}
+		  | ID ASSIGN CH {union value id1,id2; strcpy(id1.strVal, $1); id2.charVal = $3; assign(3,id1,id2,0,0);}
+		  | ID ASSIGN STR {union value id1,id2; strcpy(id1.strVal, $1); strcpy(id2.strVal, $3); assign(4,id1,id2,0,0);}
+		  | ID ASSIGN exp {union value id1,id2; strcpy(id1.strVal, $1); id2.intVal = evalAST($3); assign(1,id1,id2,0,0);}
+		  | ID ASSIGN ID '[' NR ']' {union value id1,id2; strcpy(id1.strVal, $1); strcpy(id2.strVal, $3); assign(6,id1,id2,0,$5);}
+		  | ID '[' NR ']' ASSIGN ID {union value id1,id2; strcpy(id1.strVal, $1); strcpy(id2.strVal, $6); assign(7,id1,id2,$3,0);}
+		  | ID '[' NR ']' ASSIGN ID '[' NR ']' {union value id1,id2; strcpy(id1.strVal, $1);  strcpy(id2.strVal, $8); assign(6,id1,id2,$3,$8);}
+		  | ID '[' NR ']' ASSIGN NR {union value id1,id2; strcpy(id1.strVal, $1); id2.intVal = $6; assign(9,id1,id2,$3,0);}
+		  | ID '[' NR ']' ASSIGN NRF {union value id1,id2; strcpy(id1.strVal, $1); id2.intVal = $6; assign(10,id1,id2,$3,0);}
+		  | ID '[' NR ']' ASSIGN CH {union value id1,id2; strcpy(id1.strVal, $1); id2.intVal = $6; assign(11,id1,id2,$3,0);}
+		  | ID '[' NR ']' ASSIGN exp {union value id1,id2; strcpy(id1.strVal, $1); id2.intVal = evalAST($6); assign(9,id1,id2,$3,0);}
+		  
 		  ;
-param_list : param_list ',' ID
-		   | param_list ',' NR
-		   | ID '(' ')'
-		   | ID '(' param_list ')'
-		   | ID
-		   | NR
-		   ;  
+
 bool_expresion : '(' bool_expresion ')'
 			   | NOT bool_expresion
-			   |  bool_expresion AND bool_expresion
+			   | bool_expresion AND bool_expresion
 			   | bool_expresion OR bool_expresion
 			   | bool_expresion EQ bool_expresion
+			   | bool_expresion NEQ bool_expresion
 			   | bool_expresion GEQ bool_expresion
 			   | bool_expresion LEQ bool_expresion
 			   | bool_expresion S bool_expresion
 			   | bool_expresion G bool_expresion
-			   | bool_expresion ASSIGN bool_expresion
-			   | exp
+			   | bool_expresion '+' bool_expresion
+			   | bool_expresion '-' bool_expresion
+			   | bool_expresion '/' bool_expresion
+		       | bool_expresion '*' bool_expresion
+		       | bool_expresion '^' bool_expresion
+			   | ID
+			   | NR
 			   ;
 
 for_dec : declare
-		| ID ASSIGN ID
-		| ID ASSIGN NR
+		| asigments
 		;
 for_exp : ID ASSIGN exp
 		| ID '+' '+'
 		| | ID '-' '-'
 		;
 
-returns : RTR 
-	    | RTR NR
-	    | RTR ID 
+returns_ : RTR {$$ = "void";}
+	    | RTR NR {$$ = "int";}
+		| RTR NRF {$$ = "float";}
+		| RTR STR {$$ = "string";}
+		| RTR CH {$$ = "char";}	
+	    | RTR ID {char msg[100]; int i = existsVar($2); if(i == -1) {sprintf(msg,"Variable \'%s\' not found\n"); yyerror(msg);} else $$ = vars[i].type;}
 		;
 		
 
@@ -342,7 +435,14 @@ void yyerror(char * s){
 int main(int argc, char** argv){
 	yyin=fopen(argv[1],"r");
 	yyparse();
+	int i;
+	if(yyr == 0){
+		printf("Program semantically correct\n");
+		for(i = 0; i < prn.noPrn; i++)
+			printf("%s %d\n",prn.str[i],prn.results[i]);
+	}
 	printSymbolTabel();
+	printFunctionTabel();
 } 
 
 int insertVar(char *name, char *type, int maxElem) {
@@ -372,14 +472,14 @@ int insertVar(char *name, char *type, int maxElem) {
 int existsVar(char *s) {
      int i = 0;
      for(i = 0; i < noVars; i++) {
-          if(strcmp(s, vars[i].name) == 0)
+          if(strcmp(s, vars[i].name) == 0 && (vars[i].scope == 1 || vars[i].scope == scope))
                return i;
      }
 
      return -1;
 }
 
-void assign(int type, union value id1, union value id2)
+void assign(int type, union value id1, union value id2, int index1, int index2)
 {
 	union value x;  
 	char msg[100];
@@ -400,14 +500,23 @@ void assign(int type, union value id1, union value id2)
 	switch(type)
 	{
 		case 1:
-			vars[i].val.intVal = id2.intVal;
+			if(strcmp(vars[i].type,"float") == 0)
+				vars[i].val.floatVal = id2.intVal;
+			else
+				vars[i].val.intVal = id2.intVal;
 		break;
 		case 2:
+			if(strcmp(vars[i].type,"float") != 0)
+			{
+				sprintf(msg,"Can't assign a float value to variable \'%s\' of type %s",vars[i].name,vars[i].type);
+				yyerror(msg);
+				return;
+			}
 			vars[i].val.floatVal = id2.floatVal;
 		break;
 		case 3:
 			if(strcmp(vars[i].type,"char") != 0){
-				sprintf(msg,"Can't assign a char value to variable %s of type %s",vars[i].name,vars[i].type);
+				sprintf(msg,"Can't assign a char value to variable \'%s\' of type %s",vars[i].name,vars[i].type);
 				yyerror(msg);
 				return;
 			}
@@ -415,80 +524,230 @@ void assign(int type, union value id1, union value id2)
 		break;
 		case 4:
 			if(strcmp(vars[i].type,"string") != 0){
-				sprintf(msg,"Can't assign a string to variable %s of type %s",vars[i].name,vars[i].type);
+				sprintf(msg,"Can't assign a string to variable \'%s\' of type %s",vars[i].name,vars[i].type);
 				yyerror(msg);
 				return;
 			}
-			strcpy(vars[i].val.strVal, id2.strVal);
+			vars[i].noElem = strlen(id2.strVal);
+			for(j = 0; j < vars[i].noElem; j++)
+				vars[i].arr[j].charVal = id2.strVal[j];
+			
 		break;
 		case 5:
 			j = existsVar(id2.strVal);
-			if(i == -1){
-				sprintf(msg,"Variable %s doesn't exist",id2.strVal);
+			if(j == -1){
+				sprintf(msg,"Variable \'%s\' doesn't exist",id2.strVal);
 				yyerror(msg);
 				return;
 			}
 			if(strcmp(vars[i].type,vars[j].type) != 0){
-				sprintf(msg,"Variable %s has not same type with variable %s",vars[i].type,vars[j].type);
+				sprintf(msg,"Variable \'%s\' has not same type with variable %s",vars[i].type,vars[j].type);
 				yyerror(msg);
 			}
 			else	vars[i].val  = vars[j].val;
 		break;
-	}
-	
-}
-
-void printSymbolTabel()
-{
-	FILE *file;
-	file = fopen("SymbolTable.txt","w");
-	int i;
-	fprintf(file,"--------------------------------------------------------------------\n");
-	fprintf(file,"----------------------------SYMBOL TABLE----------------------------\n");
-	fprintf(file,"--------------------------------------------------------------------\n");
-
-	for(i = 0; i < noVars; i++)
-	{
-		char constant[10];
-		char scopes[10];
-		if(vars[i].isConst == 1)
-			strcpy(constant,"Yes");
-		else
-			strcpy(constant,"No");
-		if(vars[i].scope == 0)
-			strcpy(scopes,"main");
-		else if(vars[i].scope == 1)
-			strcpy(scopes,"global");
-		else
-			strcpy(scopes,"function");
-		if(vars[i].hasVal == 1)
-		{
-			if(strcmp(vars[i].type,"int") == 0)
-				fprintf(file,"Type: [%s]      Name: [%s],   Const: [%s].    Value: [%d]    Scope: [%s]\n",vars[i].type,vars[i].name,constant,vars[i].val.intVal,scopes);
-			else if(strcmp(vars[i].type,"char") == 0)
-				fprintf(file,"Type: [%s]      Name: [%s],   Const: [%s].    Value: [%c]    Scope: [%s]\n",vars[i].type,vars[i].name,constant,vars[i].val.charVal,scopes);
-			else if(strcmp(vars[i].type,"float") == 0)
-				fprintf(file,"Type: [%s]    Name: [%s]   Const: [%s]   Value: [%f]    Scope: [%s]\n",vars[i].type,vars[i].name,constant,vars[i].val.floatVal,scopes);
-			else if(strcmp(vars[i].type,"string") == 0)
-				fprintf(file,"Type: [%s]    Name: [%s]   Const: [%s]   Value: [%s]    Scope: [%s]\n",vars[i].type,vars[i].name,constant,vars[i].val.strVal,scopes);
-			else if(strcmp(vars[i].type,"bool") == 0){
-				char b[6];
-				if(vars[i].val.boolVal == 1)
-					strcpy(b,"true");
-				else
-					strcpy(b,"false");
-				fprintf(file,"Type: [%s]     Name: [%s]   Const: [%s]   Value: [%s]    Scope: [%s]\n",vars[i].type,vars[i].name,constant,b,scopes);
+		case 6:
+			j = existsVar(id2.strVal);
+			if(j == -1){
+					sprintf(msg,"Variable \'%s\' doesn't exist",id2.strVal);
+					yyerror(msg);
+					return;
 			}
-		}
-		else if(vars[i].maxElem != 0)
-			fprintf(file,"Type: [%s]      Name: [%s]     Const: [%s]   No of elements: [%d] Max no of elements: [%d]  Scope: [%s]\n",vars[i].type,vars[i].name,constant,vars[i].noElem,vars[i].maxElem,scopes);
-		else
-			fprintf(file,"Type: [%s]     Name: [%s]   Const: [%s]   Scope: [%s]\n",vars[i].type,vars[i].name,constant,scopes);		
+			if(strcmp(vars[i].type,vars[j].type) != 0){
+				sprintf(msg,"Variable \'%s\' has not same type with variable %s",vars[i].type,vars[j].type);
+				yyerror(msg);
+			}
+			else	vars[i].val  = vars[j].arr[index2];
+		break;
+		case 7:
+			j = existsVar(id2.strVal);
+			if(j == -1){
+				sprintf(msg,"Variable \'%s\' doesn't exist",id2.strVal);
+				yyerror(msg);
+				return;
+			}
+			if(vars[i].maxElem == 0)
+			{
+				sprintf(msg,"Variable \'%s\' is not an array",vars[i].name);
+				yyerror(msg);
+				return;
+			}
+			if(strcmp(vars[i].type,vars[j].type) != 0){
+				sprintf(msg,"Array \'%s\' has not same type with variable \'%s\'",vars[i].type,vars[j].type);
+				yyerror(msg);
+				return;
+			}
+			if(index1 > vars[i].maxElem){
+				sprintf(msg,"Index given is higher than the array [%s] capacity",vars[i].name);
+				yyerror(msg);
+				return;
+			}
+			vars[i].arr[index1] = vars[j].val;
+			if(index1 >= vars[i].noElem)
+				vars[i].noElem = index1+1;
+		break;
+		case 8:
+			j = existsVar(id2.strVal);
+			if(j == -1){
+				sprintf(msg,"Variable \'%s\' doesn't exist",id2.strVal);
+				yyerror(msg);
+				return;
+			}
+			if(vars[i].maxElem == 0)
+			{
+				sprintf(msg,"Variable \'%s\' is not an array",vars[i].name);
+				yyerror(msg);
+				return;
+			}
+			if(index1 > vars[i].maxElem){
+				sprintf(msg,"Index given is higher than the array [%s] capacity",vars[i].name);
+				yyerror(msg);
+				return;
+			}
+			if(index2 > vars[j].maxElem){
+				sprintf(msg,"Index given is higher than the array [%s] capacity",vars[j].name);
+				yyerror(msg);
+				return;
+			}
+			if(strcmp(vars[i].type,vars[j].type) != 0){
+				sprintf(msg,"Variable \'%s\' doesn't have the same type with variable %s",vars[i].type,vars[j].type);
+				yyerror(msg);
+			}
+			else	vars[i].arr[index1] = vars[j].arr[index2];
+			if(index1 >= vars[i].noElem)
+				vars[i].noElem = index1+1;
+		break;
+		case 9:
+			if(vars[i].maxElem == 0)
+			{
+				sprintf(msg,"Variable \'%s\' is not an array",vars[i].name);
+				yyerror(msg);
+				return;
+			}	
+			if(index1 > vars[i].maxElem){
+				sprintf(msg,"Index given is higher than the array [%s] capacity",vars[i].name);
+				yyerror(msg);
+				return;
+			}
+			if(strcmp(vars[i].type,"int") == 0)
+				vars[i].arr[index1]  = id2;
+			else if(strcmp(vars[i].type,"float") == 0)
+				vars[i].arr[index1].floatVal  = id2.intVal;
+			else{
+				sprintf(msg,"Can't assign an integer to a %s type array",vars[i].type);
+				yyerror(msg);
+			}
+			if(index1 >= vars[i].noElem)
+				vars[i].noElem = index1+1;
+		break;
+		case 10:
+			if(vars[i].maxElem == 0)
+			{
+				sprintf(msg,"Variable \'%s\' is not an array",vars[i].name);
+				yyerror(msg);
+				return;
+			}	
+			if(index1 > vars[i].maxElem){
+				sprintf(msg,"Index given is higher than the array [%s] capacity",vars[i].name);
+				yyerror(msg);
+				return;
+			}
+			if(strcmp(vars[i].type,"float") == 0)
+				vars[i].arr[index1]  = id2;
+			else{
+				sprintf(msg,"Can't assign a float to a %s type array",vars[i].type);
+				yyerror(msg);
+			}
+			if(index1 >= vars[i].noElem)
+				vars[i].noElem = index1+1;
+		break;
+		case 11:
+			if(vars[i].maxElem == 0)
+			{
+				sprintf(msg,"Variable \'%s\' is not an array",vars[i].name);
+				yyerror(msg);
+				return;
+			}	
+			if(index1 > vars[i].maxElem){
+				sprintf(msg,"Index given is higher than the array [%s] capacity",vars[i].name);
+				yyerror(msg);
+				return;
+			}
+			if(strcmp(vars[i].type,"string") == 0)
+				vars[i].arr[index1]  = id2;
+			else{
+				sprintf(msg,"Can't assign a float to a %s type array",vars[i].type);
+				yyerror(msg);
+			}
+			if(index1 >= vars[i].noElem)
+				vars[i].noElem = index1+1;
+		break;
 	}
-
-	fclose(file);
 }
 
+struct arguments *addArgs(struct arguments *args, char *type_, char *name)
+{
+	int i;
+	char msg[100];
+	if(name != NULL)
+	{
+		for(i = 0; i < args->noArgs; i++)
+			if(strcmp(args->argNames[i],name) == 0)
+			{
+				sprintf(msg,"Argument \'%s\' already exist",name);
+				yyerror(msg);
+			  return NULL;
+			}
+	}
+	if(strncmp(type_,"const",5) == 0){
+		args->argConsts[args->noArgs] = 1;
+		strcpy(type_,type_+6);
+	}
+	else
+		args->argConsts[args->noArgs] = 0;
+	args->argTypes[args->noArgs] = type_;
+	args->argNames[args->noArgs] = name;
+	args->noArgs++;
+	return args;
+}
+
+void insertFunc(char *type_, char *name, struct arguments *args, int method, int defined)
+{
+	int i;
+	char msg[100];
+	if(existsFunc(type_,name,args,1) != -1)
+	{
+	  sprintf(msg,"Redefinion of function \'%s\' ", name);
+	  yyerror(msg);
+	  
+	  return;
+	}
+	funcs[noFuncs].type = type_;
+	funcs[noFuncs].name = name;
+	funcs[noFuncs].args = args;
+	funcs[noFuncs].method = method;
+	funcs[noFuncs].defined = defined;
+	noFuncs++;
+}
+
+int existsFunc(char *type_, char *name, struct arguments *args, int tc)
+{
+	int i = 0;
+	for(i = 0; i < noFuncs; i++)
+		if(strcmp(funcs[i].name,name) == 0)
+		{
+			int j = 0,x = 0;
+			for(j = 0; j < funcs[i].args->noArgs && j < args->noArgs; j++){
+				if(strcmp(funcs[i].args->argTypes[j],args->argTypes[j]) == 0)
+					x++;
+			}
+			if(x == args->noArgs && funcs[i].args->noArgs == x)
+				if(tc == 0 || (tc == 1 && strcmp(funcs[i].type,type_) == 0))
+					return i;			
+		}
+	
+	return -1;
+}
 
 struct node * buildAST(union value root,struct node *left,struct node *right,int type)
 { 
@@ -545,4 +804,115 @@ int evalAST(struct node* AST)
 		default :
 			return 0;
 	}
+}
+
+
+void printSymbolTabel()
+{
+	FILE *file;
+	file = fopen("SymbolTable.txt","w");
+	int i;
+	fprintf(file,"--------------------------------------------------------------------\n");
+	fprintf(file,"----------------------------SYMBOL TABLE----------------------------\n");
+	fprintf(file,"--------------------------------------------------------------------\n");
+
+	for(i = 0; i < noVars; i++)
+	{
+		char constant[10];
+		char scopes[10];
+		if(vars[i].isConst == 1)
+			strcpy(constant,"Yes");
+		else
+			strcpy(constant,"No");
+		if(vars[i].scope == 0)
+			strcpy(scopes,"main");
+		else if(vars[i].scope == 1)
+			strcpy(scopes,"global");
+		else if(vars[i].scope % 2 == 0)
+			strcpy(scopes,"struct");
+		else
+			strcpy(scopes,"function");
+		if(vars[i].maxElem == 0)
+		{
+			if(vars[i].hasVal == 1){
+				if(strcmp(vars[i].type,"int") == 0)
+					fprintf(file,"Type: [%s]      Name: [%s],   Const: [%s]     Value: [%d]    Scope: [%s]\n",vars[i].type,vars[i].name,constant,vars[i].val.intVal,scopes);
+				else if(strcmp(vars[i].type,"char") == 0)
+					fprintf(file,"Type: [%s]     Name: [%s],   Const: [%s]     Value: [%c]    Scope: [%s]\n",vars[i].type,vars[i].name,constant,vars[i].val.charVal,scopes);
+				else if(strcmp(vars[i].type,"float") == 0)
+					fprintf(file,"Type: [%s]    Name: [%s]   Const: [%s]   Value: [%f]    Scope: [%s]\n",vars[i].type,vars[i].name,constant,vars[i].val.floatVal,scopes);
+				else if(strcmp(vars[i].type,"bool") == 0){
+					char b[6];
+					if(vars[i].val.boolVal == 1)
+						strcpy(b,"true");
+					else
+						strcpy(b,"false");
+					fprintf(file,"Type: [%s]     Name: [%s]   Const: [%s]   Value: [%s]    Scope: [%s]\n",vars[i].type,vars[i].name,constant,b,scopes);
+				}
+			}
+			else fprintf(file,"Type: [%s]     Name: [%s]   Const: [%s]   Scope: [%s]\n",vars[i].type,vars[i].name,constant,scopes);		
+		}
+		else if(vars[i].maxElem != 0)
+		{
+			int j;
+			fprintf(file,"Type: [%s]     Name: [%s]     Const: [%s]   No of elements: [%d] Max no of elements: [%d] Values: [ ",vars[i].type,vars[i].name,constant,vars[i].noElem,vars[i].maxElem);				for(j = 0; j < vars[i].noElem; j++)
+			for(j = 0; j < vars[i].noElem; j++)
+			{
+				if(strcmp(vars[i].type,"int") == 0)
+					fprintf(file,"%d",vars[i].arr[j].intVal);
+				else if(strcmp(vars[i].type,"char") == 0)
+					fprintf(file,"%c",vars[i].arr[j].charVal);
+				else if(strcmp(vars[i].type,"float") == 0)
+					fprintf(file,"%f",vars[i].arr[j].floatVal);
+				else if(strcmp(vars[i].type,"string") == 0)
+					fprintf(file,"%c",vars[i].arr[j].charVal);
+				else if(strcmp(vars[i].type,"bool") == 0){
+					char b[6];
+					if(vars[i].val.boolVal == 1)
+						strcpy(b,"true");
+					else
+						strcpy(b,"false");
+					fprintf(file,"%s",b);
+				}
+				if(j != vars[i].noElem - 1 && strcmp(vars[i].type,"string") != 0)
+					fprintf(file,", ");
+			}
+			fprintf(file," ]    Scope: [%s]\n",scopes);
+		}
+		else
+			printf(file,"Type: [%s]      Name: [%s]     Const: [%s]   No of elements: [%d] Max no of elements: [%d]  Scope: [%s]\n",vars[i].type,vars[i].name,constant,vars[i].noElem,vars[i].maxElem,scopes);
+
+	}
+
+	fclose(file);
+}
+
+
+void printFunctionTabel()
+{
+	FILE *file;
+	file = fopen("FunctionTable.txt","w");
+	int i,j;
+	fprintf(file,"----------------------------------------------------------------------\n");
+	fprintf(file,"----------------------------FUNCTION TABLE----------------------------\n");
+	fprintf(file,"----------------------------------------------------------------------\n");
+
+	for(i = 0; i < noFuncs; i++)
+	{
+		char method[5];
+		if(funcs[i].method == 1)
+			strcpy(method,"No");
+		else
+			strcpy(method,"Yes");
+		fprintf(file,"Return type: [%s]    Name: [%s]  Arguments: ",funcs[i].type,funcs[i].name);
+		if(funcs[i].args == NULL)
+			fprintf(file,"[No arguments]  Method: [%s]\n ",method);
+		else{
+			for(j = 0; j < funcs[i].args->noArgs - 1; j++)
+				fprintf(file,"%s %s, ",funcs[i].args->argTypes[j],funcs[i].args->argNames[j]);
+			fprintf(file,"%s %s   Method: [%s]\n",funcs[i].args->argTypes[j],funcs[i].args->argNames[j],method);
+		}
+	}
+	
+	fclose(file);
 }
