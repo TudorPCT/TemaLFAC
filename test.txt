@@ -1,25 +1,44 @@
-int x := 10;
-float b := 2;
-bool t := true;
-const int ab := 10;
-int as[10];
 _global_declaration_section_
 
 int x := 10;
-float b := 2;
+int y := 2;
+float b := 2.5;
 bool t := true;
 const int ab := 10;
-int as;
+int as[10];
+char c := 'a';
+string s := "ab";
+int xz;
 
 _func_section_
 
-int f(int ba)
+mystruct test{
+	int xz;
+	char ad;
+}asd;
+
+int f(int ba, int x)
 {
-	int xs;
+	int z;
+	return z;
+}
+
+char f(int ba, int x)
+{
+	int sa;
+	for(sa := 0; sa < 10; sa++)
+		if(sa == 2)
+			while((sa * 3) < 20 && sa != 7)
+				sa := sa + 1;
+	return 'a';
 }
 
 _main_section_
-
 {
-	int c;
+	int mainvar;
+	mainvar := 1;
+	as[0] := x;
+	as[3] := y+2;
+	f(f(x,y),mainvar+2);
+	print("Value of x*4+y^2/4-2 is: ",x*4+y^2/4-2);
 }
