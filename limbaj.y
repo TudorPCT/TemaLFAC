@@ -1,40 +1,66 @@
 %{
 #include <stdio.h>
-#include<string.h>
-#include "tema.tab.h"
+extern FILE* yyin;
+extern char* yytext;
+extern int yylineno;
+int yylex();
+void yyerror(char *s);
 %}
-%option noyywrap
+%token ID TIP BGIN END ASSIGN NR RTR MAIN
+%start progr
 %%
-"_global_declaration_section_" {return DEC;}
-"_func_section_" {return FS;}
-"_main_section_" {return MAIN;}
-"int"|"float"|"char"|"string"|"bool" {yylval.strval=strdup(yytext);return TYPE;}
-"mystruct" {return CUSTOMTYPE;}
-"!" {return NOT;}
-"return" {return RTR;}
-"while" {return WHILE;}
-"for" {return FOR;}
-"if" {return IF;}
-"true" {yylval.intval=1; return NR;}
-"false" {yylval.intval=0; return NR;}
-"print" {return PRT;}
-"==" {return EQ;}
-"!=" {return NEQ;}
-"><" {return NEQ;}
-">=" {return GEQ;}
-"<=" {return LEQ;}
-">" {return G;}
-"<"  {return S;}
-"else" {return ELSE;}
-"const" {yylval.strval=strdup(yytext); return CONST;}
-"&&" {return AND;}
-"||" {return OR;}
-\'[_a-zA-Z/.^*\-+0-9 :]\' {yylval.charval=yytext[1];return CH;}
-\"[_a-zA-Z/.^*\-+0-9 :]*\" {yytext = yytext+1; yytext[strlen(yytext)-1] = '\0'; yylval.strval=strdup(yytext);return STR;}
-[0-9]+ {yylval.intval=atoi(yytext); return NR;}
-[0-9]+"."[0-9]+  {yylval.floatval=atof(yytext); return NRF;}
-[_a-zA-Z][_a-zA-Z0-9]* {yylval.strval=strdup(yytext);return ID;}
-":=" {return ASSIGN;}
-[ \t] ;
-\n {yylineno++;}
-. {return yytext[0];}
+progr: declaratii functii mainbloc {printf("program corect sintactic\n");}
+     ;
+
+declaratii :  declaratie ';'
+	   | declaratii declaratie ';'
+	   ;
+declaratie : TIP ID 
+           | TIP ID '(' lista_param ')'
+           | TIP ID '(' ')'
+           ;
+lista_param : param
+            | lista_param ','  param 
+            ;
+            
+param : TIP ID
+      ; 
+
+/* functii */
+functii : functii functie
+		| functie
+		;
+functie : TIP ID '(' lista_param ')' bloc
+		;
+	  
+/* bloc */
+bloc : BGIN list END  
+     ;
+     
+/* lista instructiuni */
+list :  statement ';' 
+     | list statement ';'
+     ;
+
+/* instructiune */
+statement: declaratie 
+		 | ID ASSIGN ID
+         | ID ASSIGN NR  		 
+         | ID '(' lista_apel ')'
+         ;
+        
+lista_apel : NR
+           | lista_apel ',' NR
+           ;
+/* main */		   
+mainbloc : TIP MAIN '(' ')' bloc
+		 ;
+%%
+void yyerror(char * s){
+printf("eroare: %s la linia:%d\n",s,yylineno);
+}
+
+int main(int argc, char** argv){
+yyin=fopen(argv[1],"r");
+yyparse();
+} 
